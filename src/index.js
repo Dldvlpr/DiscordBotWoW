@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const bot_1 = require("./bot");
+const config_1 = require("./config/config");
+const bot = new bot_1.Bot();
+bot.start();
+console.log("🔍 Vérification des variables d’environnement...");
+console.log("DISCORD_TOKEN:", config_1.config.token ? "✅ Chargé" : "❌ Manquant");
+console.log("DATABASE_URL:", config_1.config.databaseUrl ? "✅ Chargé" : "❌ Manquant");
+console.log("DISCORD_CLIENT_ID:", config_1.config.clientId ? "✅ Chargé" : "❌ Manquant");
+console.log("DISCORD_GUILD_ID:", config_1.config.guildId ? "✅ Chargé" : "❌ Manquant");

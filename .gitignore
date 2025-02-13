@@ -3,3 +3,14 @@ node_modules
 .env.local
 .idea
 .DS_Store
+.env
+dist.zip
+dist/bot.js
+dist/commands/Command.js
+dist/commands/PingCommand.js
+dist/config/config.js
+dist/database/database.js
+dist/deploy-commands.js
+dist/handlers/CommandHandler.js
+dist/handlers/EventHandler.js
+dist/index.js

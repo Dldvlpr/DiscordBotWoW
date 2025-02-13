@@ -4,10 +4,11 @@
   "description": "Un bot Discord en TypeScript avec PostgreSQL",
   "main": "dist/index.js",
   "scripts": {
-    "start": "node dist/index.js",
+    "start": "NODE_ENV=production node dist/index.js",
     "dev": "ts-node src/index.ts",
     "build": "tsc",
-    "deploy-commands": "ts-node src/deploy-commands.ts"
+    "deploy-commands": "ts-node src/deploy-commands.ts",
+    "postinstall": "npm run build"
   },
   "keywords": [],
   "author": "",

@@ -6,7 +6,8 @@ export const config = {
     token: process.env.DISCORD_TOKEN || "",
     databaseUrl: process.env.DATABASE_URL || "",
     clientId: process.env.DISCORD_CLIENT_ID || "",
-    guildId: process.env.DISCORD_GUILD_ID || ""
+    guildId: process.env.DISCORD_GUILD_ID || "",
+    applicationId: process.env.DISCORD_GUILD_ID || ""
 };
 
 if (!config.token) {

@@ -1,18 +1,34 @@
-import { Bot } from "./bot";
-import { config } from "./config/config";
+import database from './database/database';
+import { initializeModels } from './models';
+import dotenv from 'dotenv';
 
-async function startApp() {
-    console.log("🔍 Vérification des variables d’environnement...");
-    console.log("DISCORD_TOKEN:", config.token ? "✅ Chargé" : "❌ Manquant");
-    console.log("DATABASE_URL:", config.databaseUrl ? "✅ Chargé" : "❌ Manquant");
-    console.log("DISCORD_CLIENT_ID:", config.clientId ? "✅ Chargé" : "❌ Manquant");
-    console.log("DISCORD_GUILD_ID:", config.guildId ? "✅ Chargé" : "❌ Manquant");
+dotenv.config();
 
-    console.log("🚀 Démarrage du bot...");
-    const bot = new Bot();
-    await bot.start();
+console.log('✅ Configuration chargée avec succès.');
+console.log('🔍 Vérification des variables d\'environnement...');
+
+const requiredEnvVars = ['DISCORD_TOKEN', 'DATABASE_URL', 'DISCORD_CLIENT_ID', 'DISCORD_GUILD_ID'];
+for (const envVar of requiredEnvVars) {
+    if (process.env[envVar]) {
+        console.log(`${envVar}: ✅ Chargé`);
+    } else {
+        console.error(`${envVar}: ❌ Manquant`);
+        process.exit(1);
+    }
 }
 
-startApp().catch((err) => {
-    console.error("❌ Erreur au lancement de l'application :", err);
-});
+async function startApp() {
+    try {
+        console.log('Initialisation de la DB et des Models');
+
+        await database.initializeDatabase();
+        await initializeModels();
+
+        console.log('✅ Application démarrée avec succès');
+    } catch (error) {
+        console.error('❌ Erreur au lancement de l\'application :', error);
+        process.exit(1);
+    }
+}
+
+startApp();

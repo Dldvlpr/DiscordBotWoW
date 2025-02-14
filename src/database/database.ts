@@ -1,58 +1,40 @@
 import { Sequelize } from "sequelize";
-import { Client } from "pg";
-import dotenv from "dotenv";
+import pgtools, {Opts} from "pgtools";
+import { URL } from "url";
 
-dotenv.config();
+export async function initializeDatabase(opts_: Opts, dbName: string): Promise<void> {
+    const dbUrl = process.env.DATABASE_URL;
+    if (!dbUrl) {
+        throw new Error("DATABASE_URL n'est pas défini dans les variables d'environnement.");
+    }
 
-const databaseUrl = new URL(process.env.DATABASE_URL as string);
-const databaseName = databaseUrl.pathname.substring(1);
-const databaseUrlData = process.env.DATABASE_URL as string;
-const adminDatabaseUrl = databaseUrlData.replace(databaseName, "postgres");
-
-const checkAndCreateDatabase = async () => {
-    const client = new Client({ connectionString: adminDatabaseUrl });
+    const parsedUrl = new URL(dbUrl);
+    const dbName = parsedUrl.pathname.replace(/^\//, "");
+    const config = {
+        host: parsedUrl.hostname,
+        port: parseInt(parsedUrl.port) || 5432,
+        user: parsedUrl.username,
+        password: parsedUrl.password,
+    };
 
     try {
-        await client.connect();
-        const res = await client.query(`SELECT 1 FROM pg_database WHERE datname = '${databaseName}'`);
-
-        if (res.rowCount === 0) {
-            console.log(`📦 La base de données "${databaseName}" n'existe pas. Création en cours...`);
-            await client.query(`CREATE DATABASE ${databaseName}`);
-            console.log(`✅ Base de données "${databaseName}" créée avec succès.`);
-        } else {
-            console.log(`✅ La base de données "${databaseName}" existe déjà.`);
-        }
+        await pgtools.createdb(config, dbName, {ifNotExists: true});
+        console.log(`La base de données "${dbName}" a été vérifiée/créée avec succès.`);
     } catch (error) {
-        console.error("❌ Erreur lors de la vérification/ création de la base :", error);
-    } finally {
-        await client.end();
+        console.error("Erreur lors de la création ou de la vérification de la DB :", error);
+        throw error;
     }
-};
 
-const sequelize = new Sequelize(process.env.DATABASE_URL as string, {
-    dialect: "postgres",
-    logging: false,
-});
+    const sequelize = new Sequelize(dbUrl, {
+        dialect: "postgres",
+        logging: false,
+    });
 
-export const connectDB = async () => {
-    await checkAndCreateDatabase();
-    try {
-        await sequelize.authenticate();
-        console.log("✅ Connexion à la base de données réussie.");
-    } catch (error) {
-        console.error("❌ Erreur de connexion à la base :", error);
-        process.exit(1);
-    }
-};
-
-export const syncDatabase = async () => {
     try {
         await sequelize.sync({ alter: true });
-        console.log("✅ Tables synchronisées.");
-    } catch (error) {
-        console.error("❌ Erreur lors de la synchronisation des tables :", error);
+        console.log("Les tables ont été synchronisées (créées/ajustées si manquantes).");
+    } catch (syncError) {
+        console.error("Erreur lors de la synchronisation des tables :", syncError);
+        throw syncError;
     }
-};
-
-export default sequelize;
+}

@@ -1,5 +1,5 @@
 import { DataTypes, Model } from "sequelize";
-import sequelize from "../database/database";
+import {sequelize} from "../database/database";
 import CronJob from "./CronJob";
 
 class CronLog extends Model {
@@ -10,6 +10,7 @@ class CronLog extends Model {
     public message!: string;
 }
 
+export function initCronLog() {
 CronLog.init(
     {
         id: {
@@ -43,6 +44,6 @@ CronLog.init(
         tableName: "cron_logs",
         timestamps: false,
     }
-);
+)}
 
 export default CronLog;

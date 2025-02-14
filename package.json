@@ -7,8 +7,7 @@
     "start": "NODE_ENV=production node dist/index.js",
     "dev": "ts-node src/index.ts",
     "build": "tsc",
-    "deploy-commands": "ts-node src/deploy-commands.ts",
-    "postinstall": "npm run build"
+    "deploy-commands": "ts-node src/deploy-commands.ts"
   },
   "keywords": [],
   "author": "",
@@ -26,6 +25,7 @@
     "node-cron": "^3.0.3",
     "pg": "^8.13.1",
     "pg-hstore": "^2.3.4",
+    "pgtools": "^1.0.1",
     "sequelize": "^6.37.5"
   }
 }

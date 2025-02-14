@@ -1,10 +1,27 @@
-import sequelize from "sequelize";
-import CronJob from "./CronJob";
-import BotCommands from "./BotCommands";
-import CronLog from "./CronLog";
+// src/models/index.ts
+import { sequelize } from '../database/database';
+import BotCommand, { initBotCommand } from './BotCommands';
+import CronJob, { initCronJob } from './CronJob';
+import CronLog, { initCronLog } from './CronLog';
 
-// Déclare les relations entre les modèles ici si nécessaire
-CronJob.hasMany(CronLog, { foreignKey: "cronJobId" });
-CronLog.belongsTo(CronJob, { foreignKey: "cronJobId" });
+export const initializeModels = async () => {
+    try {
+        // Initialiser les modèles
+        initBotCommand();
+        initCronJob();
+        initCronLog();
 
-export { sequelize, CronJob, BotCommands, CronLog };
+        // Définir les relations
+        CronJob.hasMany(CronLog, { foreignKey: "cronJobId" });
+        CronLog.belongsTo(CronJob, { foreignKey: "cronJobId" });
+
+        // Synchroniser avec la base de données
+        await sequelize.sync({ alter: true });
+        console.log("✅ Modèles synchronisés avec succès");
+    } catch (error) {
+        console.error("❌ Erreur lors de l'initialisation des modèles:", error);
+        throw error;
+    }
+};
+
+export { BotCommand, CronJob, CronLog };

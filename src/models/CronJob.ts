@@ -1,5 +1,5 @@
 import { DataTypes, Model } from "sequelize";
-import sequelize from "../database/database";
+import {sequelize} from "../database/database";
 
 class CronJob extends Model {
     public id!: string;
@@ -10,6 +10,7 @@ class CronJob extends Model {
     public lastRunAt?: Date;
 }
 
+export function initCronJob() {
 CronJob.init(
     {
         id: {
@@ -44,5 +45,6 @@ CronJob.init(
         timestamps: true,
     }
 );
+}
 
 export default CronJob;

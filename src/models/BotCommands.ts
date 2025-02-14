@@ -1,16 +1,15 @@
 import { DataTypes, Model } from "sequelize";
 import sequelize from "../database/database";
 
-class CronJob extends Model {
+class BotCommand extends Model {
     public id!: string;
     public name!: string;
-    public command!: string;
-    public schedule!: string;
-    public isActive!: boolean;
-    public lastRunAt?: Date;
+    public description!: string;
+    public response!: string;
+    public isEnabled!: boolean;
 }
 
-CronJob.init(
+BotCommand.init(
     {
         id: {
             type: DataTypes.UUID,
@@ -20,29 +19,26 @@ CronJob.init(
         name: {
             type: DataTypes.STRING,
             allowNull: false,
+            unique: true,
         },
-        command: {
+        description: {
+            type: DataTypes.TEXT,
+            allowNull: true,
+        },
+        response: {
             type: DataTypes.TEXT,
             allowNull: false,
         },
-        schedule: {
-            type: DataTypes.STRING,
-            allowNull: false,
-        },
-        isActive: {
+        isEnabled: {
             type: DataTypes.BOOLEAN,
             defaultValue: true,
-        },
-        lastRunAt: {
-            type: DataTypes.DATE,
-            allowNull: true,
         },
     },
     {
         sequelize,
-        tableName: "cron_jobs",
+        tableName: "bot_commands",
         timestamps: true,
     }
 );
 
-export default CronJob;
+export default BotCommand;

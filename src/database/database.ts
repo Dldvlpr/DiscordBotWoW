@@ -3,10 +3,9 @@ import { config } from "../config/config";
 
 export const sequelize = new Sequelize(config.databaseUrl, {
     dialect: "postgres",
-    logging: false, // Désactive les logs SQL dans la console
+    logging: true,
 });
 
-// Fonction pour établir la connexion à la base de données
 export const connectDB = async () => {
     try {
         await sequelize.authenticate();

@@ -9,7 +9,8 @@ const rest = new REST({ version: "10" }).setToken(config.token);
 (async () => {
     try {
         console.log("🚀 Déploiement des commandes...");
-        await rest.put(Routes.applicationCommands(<string> config.applicationId), { body: commands });        console.log("✅ Commandes déployées avec succès!");
+        await rest.put(Routes.applicationCommands(<string> config.clientId), { body: commands });
+        console.log("✅ Commandes déployées avec succès!");
     } catch (error) {
         console.error("❌ Erreur lors du déploiement des commandes:", error);
     }

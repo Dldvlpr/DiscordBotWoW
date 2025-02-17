@@ -1,6 +1,6 @@
-import dotenv from 'dotenv';
 import { sequelize } from './database/sequelize';
-import { initDatabase } from './database/database';
+import { initDatabase } from './database';
+import dotenv from 'dotenv';
 
 dotenv.config();
 
@@ -31,9 +31,10 @@ for (const envVar of requiredEnvVars) {
 
 async function startApplication(): Promise<void> {
     try {
-        const dbName: string = process.env.DB_NAME!;
+        let dbName: string = process.env.DB_NAME!;
 
         console.log('🔍 Vérification et création de la base de données si nécessaire...');
+        console.log(dbName)
         await initDatabase(dbName);
 
         console.log('🔄 Connexion à la base de données...');

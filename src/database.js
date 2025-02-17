@@ -11,7 +11,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.syncDatabase = exports.connectDB = exports.sequelize = void 0;
 const sequelize_1 = require("sequelize");
-const config_1 = require("../config/config");
+const config_1 = require("./config/config");
 exports.sequelize = new sequelize_1.Sequelize(config_1.config.databaseUrl, {
     dialect: "postgres",
     logging: false, // Désactive les logs SQL dans la console

@@ -7,8 +7,7 @@ import { CommandHandler } from './handlers/CommandHandler';
 import { EventHandler } from './handlers/EventHandler';
 import { loadCronJobs } from './services/cronService';
 import { sequelize } from './database/sequelize';
-import { initDatabase } from './database/database';
-
+import {initDatabase} from "./database";
 export class Bot {
     private readonly client: Client;
     private readonly commandHandler: CommandHandler;

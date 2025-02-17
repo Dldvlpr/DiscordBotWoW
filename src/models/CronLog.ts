@@ -1,49 +1,34 @@
-import { DataTypes, Model } from "sequelize";
-import {sequelize} from "../database/database";
-import CronJob from "./CronJob";
+import { DataTypes, Model, Sequelize } from 'sequelize';
 
-class CronLog extends Model {
-    public id!: string;
-    public cronJobId!: string;
-    public executedAt!: Date;
-    public status!: string;
+export class CronLog extends Model {
+    public id!: number;
     public message!: string;
+    public cronJobId!: number;
 }
 
-export function initCronLog() {
-CronLog.init(
-    {
-        id: {
-            type: DataTypes.UUID,
-            defaultValue: DataTypes.UUIDV4,
-            primaryKey: true,
-        },
-        cronJobId: {
-            type: DataTypes.UUID,
-            allowNull: false,
-            references: {
-                model: CronJob,
-                key: "id",
+export function initCronLog(sequelize: Sequelize): void {
+    CronLog.init(
+        {
+            id: {
+                type: DataTypes.INTEGER,
+                autoIncrement: true,
+                primaryKey: true,
+            },
+            message: {
+                type: DataTypes.TEXT,
+                allowNull: false,
+            },
+            cronJobId: {
+                type: DataTypes.INTEGER,
+                allowNull: false,
             },
         },
-        executedAt: {
-            type: DataTypes.DATE,
-            defaultValue: DataTypes.NOW,
-        },
-        status: {
-            type: DataTypes.STRING,
-            allowNull: false,
-        },
-        message: {
-            type: DataTypes.TEXT,
-            allowNull: true,
-        },
-    },
-    {
-        sequelize,
-        tableName: "cron_logs",
-        timestamps: false,
-    }
-)}
+        {
+            sequelize,
+            tableName: 'cron_logs',
+            timestamps: true,
+        }
+    );
+}
 
 export default CronLog;

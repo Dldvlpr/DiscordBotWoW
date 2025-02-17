@@ -1,31 +1,25 @@
-import { Collection, CommandInteraction, Client } from "discord.js";
-import { Command } from "../commands/Command";
-import { PingCommand } from "../commands/PingCommand";
-
 export class CommandHandler {
-    private commands: Collection<string, Command> = new Collection();
+    private commands: Map<string, Function>;
 
     constructor() {
+        this.commands = new Map();
         this.loadCommands();
     }
 
-    private loadCommands() {
-        const commandsArray: Command[] = [new PingCommand()];
-        for (const command of commandsArray) {
-            this.commands.set(command.name, command);
-        }
+    private loadCommands(): void {
+        this.commands.set('ping', this.pingCommand);
     }
 
-    async handle(interaction: CommandInteraction, client: Client) {
-        if (!interaction.isChatInputCommand()) return;
-
-        const command = this.commands.get(interaction.commandName);
-        if (command) {
-            await command.execute(interaction, client);
-        }
+    private pingCommand(args: string[]): void {
+        console.log('Pong!', args);
     }
 
-    getCommands() {
-        return this.commands;
+    public handleCommand(command: string, args: string[]): void {
+        const cmd = this.commands.get(command);
+        if (cmd) {
+            cmd(args);
+        } else {
+            console.log(`Commande inconnue: ${command}`);
+        }
     }
 }

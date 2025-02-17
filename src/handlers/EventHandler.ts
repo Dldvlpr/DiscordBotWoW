@@ -1,23 +1,20 @@
-import { Client, Events } from "discord.js";
-import { CommandHandler } from "./CommandHandler";
-// @ts-ignore
-import { connectDB } from "../database/database";
+import { Client, Message } from 'discord.js';
+import { CommandHandler } from './CommandHandler';
 
 export class EventHandler {
     constructor(private client: Client, private commandHandler: CommandHandler) {
         this.registerEvents();
     }
 
-    private registerEvents() {
-        this.client.once(Events.ClientReady, async () => {
-            console.log(`✅ Bot connecté en tant que ${this.client.user?.tag}`);
-            await connectDB();
-        });
+    private registerEvents(): void {
+        this.client.on('messageCreate', (message: Message) => {
+            if (message.author.bot) return;
 
-        this.client.on(Events.InteractionCreate, async (interaction) => {
-            if (interaction.isChatInputCommand()) {
-                await this.commandHandler.handle(interaction, this.client);
-            }
+            const prefix = '!';
+            if (!message.content.startsWith(prefix)) return;
+
+            const [command, ...args] = message.content.slice(prefix.length).trim().split(/\s+/);
+            this.commandHandler.handleCommand(command, args);
         });
     }
 }

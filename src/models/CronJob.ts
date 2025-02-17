@@ -1,50 +1,40 @@
-import { DataTypes, Model } from "sequelize";
-import {sequelize} from "../database/database";
+import { DataTypes, Model, Sequelize } from 'sequelize';
 
-class CronJob extends Model {
-    public id!: string;
+export class CronJob extends Model {
+    public id!: number;
     public name!: string;
-    public command!: string;
     public schedule!: string;
     public isActive!: boolean;
-    public lastRunAt?: Date;
 }
 
-export function initCronJob() {
-CronJob.init(
-    {
-        id: {
-            type: DataTypes.UUID,
-            defaultValue: DataTypes.UUIDV4,
-            primaryKey: true,
+export function initCronJob(sequelize: Sequelize): void {
+    CronJob.init(
+        {
+            id: {
+                type: DataTypes.INTEGER,
+                autoIncrement: true,
+                primaryKey: true,
+            },
+            name: {
+                type: DataTypes.STRING,
+                allowNull: false,
+            },
+            schedule: {
+                type: DataTypes.STRING,
+                allowNull: false,
+            },
+            isActive: {
+                type: DataTypes.BOOLEAN,
+                allowNull: false,
+                defaultValue: true,
+            },
         },
-        name: {
-            type: DataTypes.STRING,
-            allowNull: false,
-        },
-        command: {
-            type: DataTypes.TEXT,
-            allowNull: false,
-        },
-        schedule: {
-            type: DataTypes.STRING,
-            allowNull: false,
-        },
-        isActive: {
-            type: DataTypes.BOOLEAN,
-            defaultValue: true,
-        },
-        lastRunAt: {
-            type: DataTypes.DATE,
-            allowNull: true,
-        },
-    },
-    {
-        sequelize,
-        tableName: "cron_jobs",
-        timestamps: true,
-    }
-);
+        {
+            sequelize,
+            tableName: 'cron_jobs',
+            timestamps: true,
+        }
+    );
 }
 
 export default CronJob;

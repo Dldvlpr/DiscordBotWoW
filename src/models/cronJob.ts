@@ -28,6 +28,10 @@ CronJob.init(
             allowNull: false,
             defaultValue: true,
         },
+        categoryId: {
+            type: DataTypes.STRING,
+            allowNull: true,
+        },
         guildInstanceId: {
             type: DataTypes.UUID,
             allowNull: false,

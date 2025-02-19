@@ -1,4 +1,4 @@
-import { Client, Message, Events, GatewayIntentBits } from 'discord.js';
+import { Client, Events, Interaction } from 'discord.js';
 import { CommandHandler } from './CommandHandler';
 
 export class EventHandler {
@@ -11,14 +11,21 @@ export class EventHandler {
             console.log(`✅ Bot prêt ! Connecté en tant que ${this.client.user?.tag}`);
         });
 
-        this.client.on(Events.MessageCreate, (message: Message) => {
-            if (message.author.bot) return;
+        this.client.on(Events.InteractionCreate, async (interaction) => {
+            if (!interaction.isChatInputCommand()) return;
 
-            const prefix = '!';
-            if (!message.content.startsWith(prefix)) return;
+            const command = this.commandHandler.getCommand(interaction.commandName);
+            if (!command) return;
 
-            const [command, ...args] = message.content.slice(prefix.length).trim().split(/\s+/);
-            this.commandHandler.handleCommand(command, args);
+            try {
+                await command.execute(interaction, this.client);
+            } catch (error) {
+                console.error(error);
+                await interaction.reply({
+                    content: 'Une erreur est survenue lors de l\'exécution de la commande.',
+                    ephemeral: true
+                });
+            }
         });
     }
 }

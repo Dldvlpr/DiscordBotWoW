@@ -7,7 +7,7 @@
     "start": "NODE_ENV=production node dist/index.js",
     "dev": "ts-node src/index.ts",
     "build": "tsc",
-    "deploy-commands": "ts-node src/deploy-commands.ts",
+    "deploy": "ts-node --transpile-only src/deploy-commands.ts",
     "migrate": "sequelize-cli db:migrate",
     "migrate:undo": "sequelize-cli db:migrate:undo",
     "seed": "sequelize-cli db:seed:all",

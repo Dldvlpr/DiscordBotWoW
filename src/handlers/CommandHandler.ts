@@ -1,25 +1,30 @@
+import { Client, Collection } from 'discord.js';
+import {Command} from "../commands/Command";
+import { PingCommand } from '../commands/PingCommand';
+
 export class CommandHandler {
-    private commands: Map<string, Function>;
+    private commands: Collection<string, Command>;
 
     constructor() {
-        this.commands = new Map();
+        this.commands = new Collection();
         this.loadCommands();
     }
 
     private loadCommands(): void {
-        this.commands.set('ping', this.pingCommand);
-    }
+        const commandList = [
+            new PingCommand(),
+        ];
 
-    private pingCommand(args: string[]): void {
-        console.log('Pong!', args);
-    }
-
-    public handleCommand(command: string, args: string[]): void {
-        const cmd = this.commands.get(command);
-        if (cmd) {
-            cmd(args);
-        } else {
-            console.log(`Commande inconnue: ${command}`);
+        for (const command of commandList) {
+            this.commands.set(command.name, command);
         }
+    }
+
+    public getCommands(): Command[] {
+        return Array.from(this.commands.values());
+    }
+
+    public getCommand(name: string): Command | undefined {
+        return this.commands.get(name);
     }
 }

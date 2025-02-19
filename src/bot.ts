@@ -5,7 +5,6 @@ import { Client, GatewayIntentBits } from 'discord.js';
 import config from './config/config';
 import { CommandHandler } from './handlers/CommandHandler';
 import { EventHandler } from './handlers/EventHandler';
-import { loadCronJobs } from './services/cronService';
 import db from './models';
 
 const env = (process.env.NODE_ENV as 'development' | 'test' | 'production') || 'development';

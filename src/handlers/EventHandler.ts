@@ -1,4 +1,4 @@
-import { Client, Message } from 'discord.js';
+import { Client, Message, Events, GatewayIntentBits } from 'discord.js';
 import { CommandHandler } from './CommandHandler';
 
 export class EventHandler {
@@ -7,7 +7,11 @@ export class EventHandler {
     }
 
     private registerEvents(): void {
-        this.client.on('messageCreate', (message: Message) => {
+        this.client.once(Events.ClientReady, () => {
+            console.log(`✅ Bot prêt ! Connecté en tant que ${this.client.user?.tag}`);
+        });
+
+        this.client.on(Events.MessageCreate, (message: Message) => {
             if (message.author.bot) return;
 
             const prefix = '!';

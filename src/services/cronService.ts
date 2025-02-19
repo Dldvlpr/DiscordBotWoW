@@ -1,6 +1,6 @@
 import cron from "node-cron";
-import CronJob from "../models/CronJob";
-import CronLog from "../models/CronLog";
+import CronJob from "../toto/CronJob";
+import CronLog from "../toto/CronLog";
 
 export async function loadCronJobs() {
     const cronJobs = await CronJob.findAll({ where: { isActive: true } });

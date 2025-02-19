@@ -2,12 +2,14 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import { Client, GatewayIntentBits } from 'discord.js';
-import { config } from './config/config';
+import config from './config/config';
 import { CommandHandler } from './handlers/CommandHandler';
 import { EventHandler } from './handlers/EventHandler';
 import { loadCronJobs } from './services/cronService';
-import { sequelize } from './database/sequelize';
-import {initDatabase} from "./database/database";
+import db from './models';
+
+const env = (process.env.NODE_ENV as 'development' | 'test' | 'production') || 'development';
+
 export class Bot {
     private readonly client: Client;
     private readonly commandHandler: CommandHandler;
@@ -22,7 +24,11 @@ export class Bot {
         this.dbName = process.env.DB_NAME;
 
         this.client = new Client({
-            intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
+            intents: [
+                GatewayIntentBits.Guilds,
+                GatewayIntentBits.GuildMessages,
+                GatewayIntentBits.MessageContent,
+            ]
         });
 
         this.commandHandler = new CommandHandler();
@@ -31,24 +37,16 @@ export class Bot {
 
     public async start(): Promise<void> {
         try {
-            console.log("🔍 Vérification et création de la base de données si nécessaire...");
-            await initDatabase(this.dbName);
-            console.log("✅ Base de données vérifiée ou créée avec succès.");
-
             console.log("🔄 Connexion à la base de données...");
-            await sequelize.authenticate();
+            await db.sequelize.authenticate();
             console.log("✅ Connexion à la base de données réussie.");
 
             console.log("📦 Synchronisation des modèles avec la base de données...");
-            await sequelize.sync({ alter: true });
+            await db.sequelize.sync({ alter: true });
             console.log("✅ Synchronisation des modèles terminée.");
 
-            console.log("⏳ Chargement des tâches cron...");
-            await loadCronJobs();
-            console.log("✅ Tâches cron chargées.");
-
             console.log("🤖 Connexion du bot Discord...");
-            await this.client.login(config.discord.token);
+            await this.client.login(config[env].discord.token);
             console.log("✅ Bot connecté avec succès !");
         } catch (error) {
             console.error("❌ Erreur au démarrage :", error);

@@ -1,8 +1,7 @@
-import { sequelize } from './database/sequelize';
-import { initDatabase } from './database/database';
 import dotenv from 'dotenv';
-
 dotenv.config();
+
+import { Bot } from './bot';
 
 console.log('✅ Configuration chargée avec succès.');
 console.log('🔍 Vérification des variables d\'environnement...');
@@ -31,22 +30,8 @@ for (const envVar of requiredEnvVars) {
 
 async function startApplication(): Promise<void> {
     try {
-        let dbName: string = process.env.DB_NAME!;
-
-        console.log('🔍 Vérification et création de la base de données si nécessaire...');
-        console.log(dbName)
-        await initDatabase(dbName);
-
-        console.log('🔄 Connexion à la base de données...');
-        await sequelize.authenticate();
-        console.log('✅ Connexion réussie.');
-
-        console.log('📦 Synchronisation des modèles avec la base de données...');
-        await sequelize.sync({ alter: true });
-        console.log('✅ Synchronisation terminée.');
-
-        console.log('🚀 Initialisation des modèles...');
-        console.log('✅ Modèles initialisés.');
+        const bot = new Bot();
+        await bot.start();
 
         console.log('🚀 Application démarrée avec succès.');
     } catch (error) {

@@ -1,7 +1,7 @@
 {
   "name": "discord-bot",
   "version": "1.0.0",
-  "description": "Un bot Discord en TypeScript avec PostgreSQL",
+  "description": "BOT V1 for guild sync",
   "main": "dist/index.js",
   "scripts": {
     "start": "NODE_ENV=production node dist/index.js",
@@ -17,7 +17,7 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@types/node": "^22.13.1",
+    "@types/node": "^22.13.4",
     "@types/pg": "^8.11.11",
     "sequelize-cli": "^6.6.2",
     "ts-node": "^10.9.2",

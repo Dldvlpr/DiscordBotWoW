@@ -7,7 +7,11 @@
     "start": "NODE_ENV=production node dist/index.js",
     "dev": "ts-node src/index.ts",
     "build": "tsc",
-    "deploy-commands": "ts-node src/deploy-commands.ts"
+    "deploy-commands": "ts-node src/deploy-commands.ts",
+    "migrate": "sequelize-cli db:migrate",
+    "migrate:undo": "sequelize-cli db:migrate:undo",
+    "seed": "sequelize-cli db:seed:all",
+    "seed:undo": "sequelize-cli db:seed:undo:all"
   },
   "keywords": [],
   "author": "",
@@ -15,18 +19,20 @@
   "devDependencies": {
     "@types/node": "^22.13.1",
     "@types/pg": "^8.11.11",
+    "sequelize-cli": "^6.6.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.7.3"
   },
   "dependencies": {
+    "@discordjs/rest": "^2.4.3",
     "@types/node-cron": "^3.0.11",
+    "discord-api-types": "^0.37.119",
     "discord.js": "^14.17.3",
     "dotenv": "^16.4.7",
     "node-cron": "^3.0.3",
     "pg": "^8.13.1",
     "pg-hstore": "^2.3.4",
     "pgtools": "^1.0.1",
-    "sequelize": "^6.37.5",
-    "sequelize-cli": "^6.6.2"
+    "sequelize": "^6.37.5"
   }
 }

@@ -11,12 +11,12 @@
     "forceConsistentCasingInFileNames": true,
     "strict": true,
     "skipLibCheck": true,
-    "noImplicitAny": false,        // Ajout important pour résoudre vos erreurs
-    "resolveJsonModule": true,     // Utile pour importer des JSON
-    "allowJs": true,               // Permet l'utilisation de fichiers JS
-    "sourceMap": true,             // Aide au debugging
-    "experimentalDecorators": true, // Utile si vous utilisez des decorators
-    "emitDecoratorMetadata": true  // Également pour les decorators
+    "noImplicitAny": false,
+    "resolveJsonModule": true,
+    "allowJs": true,
+    "sourceMap": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules"]

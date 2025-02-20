@@ -6,7 +6,6 @@ dotenv.config();
 
 const env = (process.env.NODE_ENV || 'development') as 'development' | 'test' | 'production';
 
-// Création d'une instance de CommandHandler pour récupérer toutes les commandes
 const commandHandler = new CommandHandler();
 
 const rest = new REST({ version: "10" }).setToken(config[env].discord.token);

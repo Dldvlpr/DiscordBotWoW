@@ -2,7 +2,17 @@ import { DataTypes, Model } from 'sequelize';
 import db from "./index";
 import { CronJob } from './cronJob';
 
-export class GuildInstance extends Model {}
+interface GuildInstanceAttributes {
+    id: string;
+    guildId: string;
+    guildName?: string;
+}
+
+export class GuildInstance extends Model<GuildInstanceAttributes> implements GuildInstanceAttributes {
+    public id!: string;
+    public guildId!: string;
+    public guildName?: string;
+}
 
 GuildInstance.init(
     {

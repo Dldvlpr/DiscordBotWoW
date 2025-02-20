@@ -4,6 +4,9 @@ import { CronJob } from "../models/cronJob";
 import { GuildInstance } from "../models/guildInstance";
 
 export class CreateTextChanCommand extends Command {
+    constructor() {
+        super('CreateTextChan');
+    }
 
     async execute(interaction: ChatInputCommandInteraction, client: Client): Promise<void> {
         const day = interaction.options.getString("day", true);

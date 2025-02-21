@@ -1,14 +1,9 @@
 import { DataTypes, Model } from 'sequelize';
-import db from "./index";
+import db from "../models/index";
 import { CronJob } from './cronJob';
+import {GuildInstanceInterface} from "../interfaces/guildInstance.interface";
 
-interface GuildInstanceAttributes {
-    id: string;
-    guildId: string;
-    guildName?: string;
-}
-
-export class GuildInstance extends Model<GuildInstanceAttributes> implements GuildInstanceAttributes {
+export class GuildInstance extends Model<GuildInstanceInterface> implements GuildInstanceInterface {
     public id!: string;
     public guildId!: string;
     public guildName?: string;
@@ -47,7 +42,3 @@ CronJob.belongsTo(GuildInstance, {
     foreignKey: 'guildInstanceId',
     as: 'guildInstance'
 });
-
-db.sequelize.sync()
-    .then(() => console.log('Table guild_instance synchronisée'))
-    .catch((err: Error) => console.error('Erreur de synchronisation (guild_instance) :', err));

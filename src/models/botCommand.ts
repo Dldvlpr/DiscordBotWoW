@@ -1,5 +1,5 @@
 import { DataTypes, Model } from 'sequelize';
-import db from "./index";
+import db from "../models/index";
 
 export class BotCommand extends Model {}
 
@@ -26,7 +26,3 @@ BotCommand.init(
         timestamps: true,
     }
 );
-
-db.sequelize.sync()
-    .then(() => console.log('Base de données synchronisée'))
-    .catch((err: Error) => console.error('Erreur lors de la synchronisation', err));

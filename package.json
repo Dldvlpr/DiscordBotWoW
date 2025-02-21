@@ -4,15 +4,18 @@
   "description": "BOT V1 for guild sync",
   "main": "dist/index.js",
   "scripts": {
-    "start": "NODE_ENV=production node dist/index.js",
-    "dev": "ts-node src/index.ts",
+    "start": "cross-env NODE_ENV=production node dist/index.js",
+    "prestart": "npm run migrate",
+    "dev": "cross-env NODE_ENV=development ts-node src/index.ts",
     "build": "tsc",
+    "build:migrate": "npm run build && npm run migrate",
     "build:config": "tsc src/config/config.ts --outDir dist/config",
     "deploy": "ts-node --transpile-only src/deploy-commands.ts",
     "migrate": "sequelize-cli db:migrate",
     "migrate:undo": "sequelize-cli db:migrate:undo",
     "seed": "sequelize-cli db:seed:all",
-    "seed:undo": "sequelize-cli db:seed:undo:all"
+    "seed:undo": "sequelize-cli db:seed:undo:all",
+    "clean": "rimraf dist && mkdir dist"
   },
   "keywords": [],
   "author": "",
@@ -20,6 +23,8 @@
   "devDependencies": {
     "@types/node": "^22.13.4",
     "@types/pg": "^8.11.11",
+    "cross-env": "^7.0.3",
+    "rimraf": "^5.0.0",
     "sequelize-cli": "^6.6.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.7.3"

@@ -2,7 +2,7 @@ import { REST, Routes } from "discord.js";
 import { CommandHandler } from "./handlers/CommandHandler";
 import config from "./config/config";
 import dotenv from 'dotenv';
-dotenv.config();
+dotenv.config({ path: '.env.local' });
 
 const env = (process.env.NODE_ENV || 'development') as 'development' | 'test' | 'production';
 

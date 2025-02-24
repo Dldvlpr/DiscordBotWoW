@@ -22,7 +22,7 @@ BotAutoText.init(
     },
     {
         sequelize: db.sequelize,
-        tableName: 'bot_auto_text',
+        tableName: 'bot_auto_textnpm install axios',
         timestamps: true,
     }
 );

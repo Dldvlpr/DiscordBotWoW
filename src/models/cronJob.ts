@@ -1,7 +1,8 @@
 import { DataTypes, Model } from 'sequelize';
 import db from "./index";
 
-export class CronJob extends Model {}
+export class CronJob extends Model {
+}
 
 CronJob.init(
     {

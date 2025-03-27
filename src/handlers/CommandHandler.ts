@@ -1,7 +1,9 @@
 import { Client, Collection } from 'discord.js';
-import {Command} from "../commands/Command";
+import { Command } from "../commands/Command";
 import { PingCommand } from '../commands/PingCommand';
-import {CreateTextChanCommand} from "../commands/CreateTextChanCommand";
+import { CreateTextChanCommand } from "../commands/CreateTextChanCommand";
+import { WelcomeCommand } from '../commands/WelcomeCommand';
+import { CreateRaidHelperCommand } from '../commands/CreateRaidHelperCommand';
 
 export class CommandHandler {
     private commands: Collection<string, Command>;
@@ -14,11 +16,13 @@ export class CommandHandler {
     private loadCommands(): void {
         const commandList = [
             new PingCommand(),
-            new CreateTextChanCommand()
+            new CreateTextChanCommand(),
+            new WelcomeCommand(),
+            new CreateRaidHelperCommand()
         ];
 
         for (const command of commandList) {
-            this.commands.set(command.name, command);
+            this.commands.set(command.name.toLowerCase(), command);
         }
     }
 
@@ -27,6 +31,6 @@ export class CommandHandler {
     }
 
     public getCommand(name: string): Command | undefined {
-        return this.commands.get(name);
+        return this.commands.get(name.toLowerCase());
     }
 }

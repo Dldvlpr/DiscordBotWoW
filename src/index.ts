@@ -7,6 +7,7 @@ console.log('✅ Configuration chargée avec succès.');
 console.log('🔍 Vérification des variables d\'environnement...');
 
 const requiredEnvVars = [
+    'NODE_ENV',
     'DISCORD_TOKEN',
     'DATABASE_URL',
     'DISCORD_CLIENT_ID',

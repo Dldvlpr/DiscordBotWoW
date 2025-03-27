@@ -2,43 +2,46 @@
 
 /** @type {import('sequelize-cli').Migration} */
 export async function up(queryInterface, Sequelize) {
-    await queryInterface.createTable('cron_jobs', {
+    await queryInterface.createTable('raid_helper_events', {
         id: {
             type: Sequelize.UUID,
             allowNull: false,
             primaryKey: true,
             defaultValue: Sequelize.UUIDV4
         },
-        name: {
-            type: Sequelize.STRING,
-            allowNull: false
-        },
-        description: {
-            type: Sequelize.STRING,
-            allowNull: true
-        },
-        schedule: {
-            type: Sequelize.STRING,
-            allowNull: false
-        },
-        isActive: {
-            type: Sequelize.BOOLEAN,
-            allowNull: false,
-            defaultValue: true
-        },
-        categoryId: {
-            type: Sequelize.STRING,
-            allowNull: true
-        },
-        guildInstanceId: {
+        cronJobId: {
             type: Sequelize.UUID,
             allowNull: false,
             references: {
-                model: 'guild_instance',
+                model: 'cron_jobs',
                 key: 'id'
             },
             onUpdate: 'CASCADE',
             onDelete: 'CASCADE'
+        },
+        raidName: {
+            type: Sequelize.STRING,
+            allowNull: false
+        },
+        raidDescription: {
+            type: Sequelize.TEXT,
+            allowNull: true
+        },
+        raidTime: {
+            type: Sequelize.STRING,
+            allowNull: true
+        },
+        maxParticipants: {
+            type: Sequelize.INTEGER,
+            allowNull: true
+        },
+        channelId: {
+            type: Sequelize.STRING,
+            allowNull: true
+        },
+        raidTemplateId: {
+            type: Sequelize.STRING,
+            allowNull: true
         },
         createdAt: {
             allowNull: false,
@@ -51,13 +54,8 @@ export async function up(queryInterface, Sequelize) {
             defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
         }
     });
-
-    await queryInterface.addIndex('cron_jobs', ['name', 'guildInstanceId'], {
-        unique: true,
-        name: 'cron_jobs_name_guild_unique'
-    });
 }
 
 export async function down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('cron_jobs');
+    await queryInterface.dropTable('raid_helper_events');
 }

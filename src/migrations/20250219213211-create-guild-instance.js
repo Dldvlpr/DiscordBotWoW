@@ -1,7 +1,5 @@
 'use strict';
 
-import * as sequelize from "sequelize";
-
 /** @type {import('sequelize-cli').Migration} */
 export async function up(queryInterface, Sequelize) {
   await queryInterface.createTable('guild_instance', {
@@ -9,7 +7,7 @@ export async function up(queryInterface, Sequelize) {
       type: Sequelize.UUID,
       allowNull: false,
       primaryKey: true,
-      defaultValue: sequelize.UUIDV4
+      defaultValue: Sequelize.UUIDV4
     },
     guildId: {
       type: Sequelize.STRING,

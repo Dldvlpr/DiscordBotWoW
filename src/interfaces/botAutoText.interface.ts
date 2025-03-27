@@ -1,7 +1,7 @@
-export interface BotCommandInterface {
+export interface BotAutoTextInterface {
     id: string;
     name: string;
-    description?: string;
+    message: string;
     createdAt?: Date;
     updatedAt?: Date;
 }

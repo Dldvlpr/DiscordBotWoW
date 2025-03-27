@@ -1,19 +1,20 @@
-'use strict';
-
-import fs from 'fs';
+import { Sequelize } from 'sequelize';
+import dotenv from 'dotenv';
 import path from 'path';
-import { Sequelize, DataTypes } from 'sequelize';
 import process from 'process';
-import dotenv from "dotenv";
+
 dotenv.config({ path: '.env.local' });
 
-const basename = path.basename(__filename);
 const env = process.env.NODE_ENV || 'development';
 
 let config: any;
 try {
     const configModule = require(path.join(__dirname, '..', 'config', 'config'));
     config = configModule.default ? configModule.default[env] : configModule[env];
+
+    if (!config) {
+        throw new Error(`Configuration pour l'environnement "${env}" non trouvée`);
+    }
 } catch (error) {
     console.error("❌ Erreur lors du chargement de la configuration :", error);
     process.exit(1);
@@ -21,10 +22,25 @@ try {
 
 let sequelize: Sequelize;
 try {
-    if (config.use_env_variable) {
+    if (config.use_env_variable && process.env[config.use_env_variable]) {
         sequelize = new Sequelize(process.env[config.use_env_variable] as string, config);
     } else {
-        sequelize = new Sequelize(config.database, config.username, config.password, config);
+        sequelize = new Sequelize(config.database, config.username, config.password, {
+            host: config.host,
+            dialect: config.dialect,
+            port: config.port,
+            logging: env === 'development' ? console.log : false,
+            pool: {
+                max: 10,
+                min: 0,
+                acquire: 30000,
+                idle: 10000
+            },
+            define: {
+                timestamps: true,
+                underscored: false
+            }
+        });
     }
     console.log("✅ Connexion Sequelize initialisée.");
 } catch (error) {
@@ -32,51 +48,77 @@ try {
     process.exit(1);
 }
 
-const db: { [key: string]: any } = {};
-
-const loadModels = async () => {
-    const modelFiles = fs.readdirSync(__dirname)
-        .filter((file: string) =>
-            file.indexOf('.') !== 0 &&
-            file !== basename &&
-            (file.endsWith('.js') || file.endsWith('.ts')) &&
-            !file.includes('.test.')
-        );
-
-    for (const file of modelFiles) {
-        try {
-            const { default: model } = await import(path.join(__dirname, file));
-            db[model.name] = model(sequelize, DataTypes);
-        } catch (error) {
-            console.error(`❌ Erreur lors du chargement du modèle ${file} :`, error);
-        }
-    }
-
-    Object.keys(db).forEach((modelName) => {
-        if (db[modelName].associate) {
-            db[modelName].associate(db);
-        }
-    });
-
-    console.log("✅ Modèles chargés :", Object.keys(db));
+const db: { [key: string]: any } = {
+    sequelize,
+    Sequelize
 };
 
-db.sequelize = sequelize;
-db.Sequelize = Sequelize;
-
-const testDatabaseConnection = async () => {
+const testDatabaseConnection = async (): Promise<void> => {
     try {
         await sequelize.authenticate();
         console.log("✅ Connexion à la base de données réussie !");
     } catch (error) {
         console.error("❌ Erreur de connexion à la base de données :", error);
-        process.exit(1);
+        throw error;
     }
 };
 
+const initModels = async (): Promise<void> => {
+    const { default: GuildInstance } = await import('./guildInstance');
+    const { default: CronJob } = await import('./cronJob');
+    const { default: RaidHelperEvent } = await import('./raidHelperEvent');
+    const { default: WelcomeMessage } = await import('./welcomeMessage');
+    const { default: BotCommand } = await import('./botCommand');
+    const { default: BotAutoText } = await import('./botAutoText');
+
+    db.GuildInstance = GuildInstance;
+    db.CronJob = CronJob;
+    db.RaidHelperEvent = RaidHelperEvent;
+    db.WelcomeMessage = WelcomeMessage;
+    db.BotCommand = BotCommand;
+    db.BotAutoText = BotAutoText;
+
+    GuildInstance.hasMany(CronJob, {
+        foreignKey: 'guildInstanceId',
+        as: 'cronJobs',
+        onDelete: 'CASCADE'
+    });
+    CronJob.belongsTo(GuildInstance, {
+        foreignKey: 'guildInstanceId',
+        as: 'guildInstance'
+    });
+
+    CronJob.hasMany(RaidHelperEvent, {
+        foreignKey: 'cronJobId',
+        as: 'raidHelperEvents',
+        onDelete: 'CASCADE'
+    });
+    RaidHelperEvent.belongsTo(CronJob, {
+        foreignKey: 'cronJobId',
+        as: 'cronJob'
+    });
+
+    GuildInstance.hasOne(WelcomeMessage, {
+        foreignKey: 'guildInstanceId',
+        as: 'welcomeMessage',
+        onDelete: 'CASCADE'
+    });
+    WelcomeMessage.belongsTo(GuildInstance, {
+        foreignKey: 'guildInstanceId',
+        as: 'guildInstance'
+    });
+
+    console.log("✅ Modèles initialisés avec succès !");
+};
+
 (async () => {
-    await testDatabaseConnection();
-    await loadModels();
+    try {
+        await testDatabaseConnection();
+        await initModels();
+    } catch (error) {
+        console.error("❌ Erreur lors de l'initialisation des modèles :", error);
+        process.exit(1);
+    }
 })();
 
 export default db;

@@ -1,29 +1,36 @@
 'use strict';
 
-import * as sequelize from "sequelize";
-import {DataTypes} from "sequelize";
-
 /** @type {import('sequelize-cli').Migration} */
 export async function up(queryInterface, Sequelize) {
-  await queryInterface.createTable('botCommand', {
+  await queryInterface.createTable('bot_commands', {
     id: {
       type: Sequelize.UUID,
       allowNull: false,
       primaryKey: true,
-      defaultValue: sequelize.UUIDV4
+      defaultValue: Sequelize.UUIDV4
     },
     name: {
-      type: DataTypes.STRING,
+      type: Sequelize.STRING,
       allowNull: false,
       unique: true
     },
     description: {
-      type: DataTypes.STRING,
+      type: Sequelize.STRING,
+      allowNull: true,
+    },
+    createdAt: {
       allowNull: false,
+      type: Sequelize.DATE,
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
+    },
+    updatedAt: {
+      allowNull: false,
+      type: Sequelize.DATE,
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
     }
   });
 }
 
 export async function down(queryInterface, Sequelize) {
-  await queryInterface.dropTable('botCommand');
+  await queryInterface.dropTable('bot_commands');
 }

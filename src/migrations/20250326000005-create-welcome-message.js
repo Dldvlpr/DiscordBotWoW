@@ -2,33 +2,12 @@
 
 /** @type {import('sequelize-cli').Migration} */
 export async function up(queryInterface, Sequelize) {
-    await queryInterface.createTable('cron_jobs', {
+    await queryInterface.createTable('welcome_messages', {
         id: {
             type: Sequelize.UUID,
             allowNull: false,
             primaryKey: true,
             defaultValue: Sequelize.UUIDV4
-        },
-        name: {
-            type: Sequelize.STRING,
-            allowNull: false
-        },
-        description: {
-            type: Sequelize.STRING,
-            allowNull: true
-        },
-        schedule: {
-            type: Sequelize.STRING,
-            allowNull: false
-        },
-        isActive: {
-            type: Sequelize.BOOLEAN,
-            allowNull: false,
-            defaultValue: true
-        },
-        categoryId: {
-            type: Sequelize.STRING,
-            allowNull: true
         },
         guildInstanceId: {
             type: Sequelize.UUID,
@@ -38,7 +17,17 @@ export async function up(queryInterface, Sequelize) {
                 key: 'id'
             },
             onUpdate: 'CASCADE',
-            onDelete: 'CASCADE'
+            onDelete: 'CASCADE',
+            unique: true
+        },
+        message: {
+            type: Sequelize.TEXT,
+            allowNull: false
+        },
+        isEnabled: {
+            type: Sequelize.BOOLEAN,
+            allowNull: false,
+            defaultValue: true
         },
         createdAt: {
             allowNull: false,
@@ -51,13 +40,8 @@ export async function up(queryInterface, Sequelize) {
             defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
         }
     });
-
-    await queryInterface.addIndex('cron_jobs', ['name', 'guildInstanceId'], {
-        unique: true,
-        name: 'cron_jobs_name_guild_unique'
-    });
 }
 
 export async function down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('cron_jobs');
+    await queryInterface.dropTable('welcome_messages');
 }

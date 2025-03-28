@@ -5,6 +5,7 @@ import { Client, GatewayIntentBits } from 'discord.js';
 import config from './config/config';
 import { CommandHandler } from './handlers/CommandHandler';
 import { EventHandler } from './handlers/EventHandler';
+import { Logger, LogLevel } from './utils/Logger';
 import db from './models';
 
 const env = (process.env.NODE_ENV as 'development' | 'test' | 'production') || 'development';
@@ -13,11 +14,20 @@ export class Bot {
     private readonly client: Client;
     private readonly commandHandler: CommandHandler;
     private readonly eventHandler: EventHandler;
+    private readonly logger: Logger;
     private readonly dbName: string;
 
     constructor() {
+        this.logger = new Logger('Bot');
+
+        if (env === 'development') {
+            Logger.setLogLevel(LogLevel.DEBUG);
+        } else {
+            Logger.setLogLevel(LogLevel.INFO);
+        }
+
         if (!process.env.DB_NAME) {
-            console.error("❌ ERREUR : La variable d'environnement DB_NAME est manquante.");
+            this.logger.error("DB_NAME environment variable is missing.");
             process.exit(1);
         }
         this.dbName = process.env.DB_NAME;
@@ -31,25 +41,28 @@ export class Bot {
             ]
         });
 
-        this.commandHandler = new CommandHandler();
+        this.commandHandler = new CommandHandler(this.client);
         this.eventHandler = new EventHandler(this.client, this.commandHandler);
     }
 
     public async start(): Promise<void> {
         try {
-            console.log("🔄 Connexion à la base de données...");
+            this.logger.info("Connecting to database...");
             await db.sequelize.authenticate();
-            console.log("✅ Connexion à la base de données réussie.");
+            this.logger.info("Database connection successful.");
 
-            console.log("📦 Synchronisation des modèles avec la base de données...");
+            this.logger.info("Synchronizing models with database...");
             await db.sequelize.sync({ alter: true });
-            console.log("✅ Synchronisation des modèles terminée.");
+            this.logger.info("Model synchronization complete.");
 
-            console.log("🤖 Connexion du bot Discord...");
+            await this.commandHandler.initialize();
+            await this.eventHandler.initialize();
+
+            this.logger.info("Connecting Discord bot...");
             await this.client.login(config[env].discord.token);
-            console.log("✅ Bot connecté avec succès !");
+            this.logger.info("Bot connected successfully!");
         } catch (error) {
-            console.error("❌ Erreur au démarrage :", error);
+            this.logger.error("Error during startup:", error);
             process.exit(1);
         }
     }

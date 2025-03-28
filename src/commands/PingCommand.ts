@@ -7,12 +7,23 @@ export class PingCommand extends Command {
     }
 
     async execute(interaction: ChatInputCommandInteraction, client: Client): Promise<void> {
-        await interaction.reply("🏓 Pong!");
+        try {
+            const sent = await interaction.deferReply({ fetchReply: true });
+            const pingLatency = sent.createdTimestamp - interaction.createdTimestamp;
+
+            const wsLatency = client.ws.ping;
+
+            await interaction.editReply(`🏓 Pong!\nLatence API: ${pingLatency}ms\nLatence WebSocket: ${wsLatency}ms`);
+
+            this.logger.debug(`Ping command executed by ${interaction.user.tag} with latency: API=${pingLatency}ms, WS=${wsLatency}ms`);
+        } catch (error) {
+            await this.handleError(interaction, error as Error);
+        }
     }
 
-    static getSlashCommand() {
+    getSlashCommand() {
         return new SlashCommandBuilder()
             .setName("ping")
-            .setDescription("Répond avec Pong!");
+            .setDescription("Répond avec Pong et affiche la latence du bot");
     }
 }

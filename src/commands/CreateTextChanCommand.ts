@@ -1,44 +1,153 @@
-import { ChatInputCommandInteraction, Client, SlashCommandBuilder, CategoryChannel } from "discord.js";
+import { ChatInputCommandInteraction, Client, SlashCommandBuilder, CategoryChannel, PermissionFlagsBits, PermissionsBitField } from "discord.js";
 import { Command } from "./Command";
 import { CronJob } from "../models/cronJob";
 import { GuildInstance } from "../models/guildInstance";
 
 export class CreateTextChanCommand extends Command {
     constructor() {
-        super('CreateTextChan');
+        super('createtextchan');
     }
 
     async execute(interaction: ChatInputCommandInteraction, client: Client): Promise<void> {
-        const day = interaction.options.getString("day", true);
-        const interval = interaction.options.getInteger("interval", true);
-        const channelNameOption = interaction.options.getString("channelname", false);
-        const categoryId = interaction.options.getString("categoryid", true);
-        if (!interaction.guildId) {
-            await interaction.reply("This command can only be used in a server.");
-            return;
-        }
+        try {
+            if (!interaction.guildId) {
+                await interaction.reply({
+                    content: "Cette commande ne peut être utilisée que sur un serveur.",
+                    ephemeral: true
+                });
+                return;
+            }
 
+            const day = interaction.options.getString("day", true);
+            const interval = interaction.options.getInteger("interval", true);
+            const channelNameOption = interaction.options.getString("channelname", false);
+            const categoryId = interaction.options.getString("categoryid", true);
+
+            const guildInstance = await this.validateGuildInstance(interaction);
+            if (!guildInstance) return;
+
+            const category = await this.validateCategory(interaction, categoryId);
+            if (!category) return;
+
+            if (!await this.validateBotPermissions(interaction, category)) return;
+
+            const channelName = channelNameOption || new Date().toLocaleDateString();
+            const schedule = this.buildCronSchedule(day, interval);
+
+            if (!await this.validateUniqueJob(interaction, guildInstance.id, channelName, schedule, categoryId)) return;
+
+            await this.createCronJob(interaction, guildInstance.id, channelName, interval, schedule, categoryId);
+
+        } catch (error) {
+            await this.handleError(interaction, error as Error);
+        }
+    }
+
+    async canExecute(interaction: ChatInputCommandInteraction): Promise<boolean> {
+        if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels)) {
+            await interaction.reply({
+                content: "Vous devez avoir la permission de gérer les canaux pour utiliser cette commande.",
+                ephemeral: true
+            });
+            return false;
+        }
+        return true;
+    }
+
+    getSlashCommand() {
+        return new SlashCommandBuilder()
+            .setName("createtextchan")
+            .setDescription("Crée automatiquement des canaux textuels à intervalles réguliers dans une catégorie spécifiée.")
+            .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
+            .addStringOption(option =>
+                option.setName("categoryid")
+                    .setDescription("ID de la catégorie où le canal sera créé")
+                    .setRequired(true)
+            )
+            .addStringOption(option =>
+                option.setName("day")
+                    .setDescription("Jour de la semaine pour la création du canal (ex: Lundi)")
+                    .setRequired(true)
+                    .addChoices(
+                        { name: "Lundi", value: "monday" },
+                        { name: "Mardi", value: "tuesday" },
+                        { name: "Mercredi", value: "wednesday" },
+                        { name: "Jeudi", value: "thursday" },
+                        { name: "Vendredi", value: "friday" },
+                        { name: "Samedi", value: "saturday" },
+                        { name: "Dimanche", value: "sunday" },
+                        { name: "Tous les jours", value: "everyday" }
+                    )
+            )
+            .addIntegerOption(option =>
+                option.setName("interval")
+                    .setDescription("Intervalle en jours pour la création du canal")
+                    .setRequired(true)
+                    .setMinValue(1)
+                    .setMaxValue(30)
+            )
+            .addStringOption(option =>
+                option.setName("channelname")
+                    .setDescription("Nom du canal (par défaut: date actuelle)")
+                    .setRequired(false)
+            );
+    }
+
+    private async validateGuildInstance(interaction: ChatInputCommandInteraction): Promise<GuildInstance | null> {
         const guildInstance = await GuildInstance.findOne({ where: { guildId: interaction.guildId }});
+
         if (!guildInstance) {
-            await interaction.reply("Guild configuration not found. Please set up your guild instance first.");
-            return;
+            await interaction.reply({
+                content: "Configuration du serveur non trouvée. Veuillez d'abord configurer votre instance de guilde.",
+                ephemeral: true
+            });
+            return null;
         }
 
+        return guildInstance;
+    }
+
+    private async validateCategory(interaction: ChatInputCommandInteraction, categoryId: string): Promise<CategoryChannel | null> {
         const category = interaction.guild?.channels.cache.get(categoryId) as CategoryChannel;
+
         if (!category || category.type !== 4) {
-            await interaction.reply("Invalid or missing category!");
-            return;
+            await interaction.reply({
+                content: "Catégorie invalide ou introuvable !",
+                ephemeral: true
+            });
+            return null;
         }
 
-        // @ts-ignore
-        if (!category.permissionsFor(interaction.guild.members.me!)?.has("ManageChannels")) {
-            await interaction.reply("I do not have permission to create channels in this category!");
-            return;
+        return category;
+    }
+
+    private async validateBotPermissions(interaction: ChatInputCommandInteraction, category: CategoryChannel): Promise<boolean> {
+        const botMember = interaction.guild?.members.me;
+
+        if (!botMember) {
+            await interaction.reply({
+                content: "Impossible de récupérer les informations du bot dans ce serveur.",
+                ephemeral: true
+            });
+            return false;
         }
 
-        const channelName = channelNameOption || new Date().toLocaleDateString();
+        const requiredPermissions = new PermissionsBitField([PermissionFlagsBits.ManageChannels]);
+        const permissions = category.permissionsFor(botMember);
+
+        if (!permissions || !permissions.has(requiredPermissions)) {
+            await interaction.reply({
+                content: "Je n'ai pas la permission de créer des canaux dans cette catégorie !",
+                ephemeral: true
+            });
+            return false;
+        }
+
+        return true;
+    }
+
+    private buildCronSchedule(day: string, interval: number): string {
         const dayLower = day.toLowerCase();
-
         const dayAbbrMap: { [key: string]: string } = {
             monday: "1",
             tuesday: "2",
@@ -47,69 +156,73 @@ export class CreateTextChanCommand extends Command {
             friday: "5",
             saturday: "6",
             sunday: "0",
+            everyday: "*"
         };
 
-        let schedule = "";
         if (dayLower in dayAbbrMap) {
-            schedule = `0 12 */${interval} * ${dayAbbrMap[dayLower]}`;
+            return `0 12 */${interval} * ${dayAbbrMap[dayLower]}`;
         } else {
-            schedule = `0 12 */${interval} * *`;
+            return `0 12 */${interval} * *`;
         }
+    }
 
+    private async validateUniqueJob(
+        interaction: ChatInputCommandInteraction,
+        guildInstanceId: string,
+        name: string,
+        schedule: string,
+        categoryId: string
+    ): Promise<boolean> {
         const existingJob = await CronJob.findOne({
             where: {
-                guildInstanceId: guildInstance.id,
-                name: channelName,
+                guildInstanceId: guildInstanceId,
+                name: name,
                 schedule: schedule,
                 categoryId: categoryId,
             }
         });
 
         if (existingJob) {
-            await interaction.reply("A scheduled task with this name and frequency already exists!");
-            return;
+            await interaction.reply({
+                content: "Une tâche planifiée avec ce nom et cette fréquence existe déjà !",
+                ephemeral: true
+            });
+            return false;
         }
 
+        return true;
+    }
+
+    private async createCronJob(
+        interaction: ChatInputCommandInteraction,
+        guildInstanceId: string,
+        name: string,
+        interval: number,
+        schedule: string,
+        categoryId: string
+    ): Promise<void> {
         try {
-            await CronJob.create({
-                name: channelName,
-                description: `Automatically creates the channel every ${interval} days.`,
+            const newJob = await CronJob.create({
+                name: name,
+                description: `Crée automatiquement le canal ${name} tous les ${interval} jours.`,
                 schedule: schedule,
                 isActive: true,
-                guildInstanceId: guildInstance.id,
+                guildInstanceId: guildInstanceId,
                 categoryId: categoryId,
             });
 
-            await interaction.reply(`Scheduled task created successfully! The channel will be created every ${interval} days at 12:00.`);
-        } catch (error) {
-            console.error("Error creating cron job:", error);
-            await interaction.reply("An error occurred while adding the scheduled task.");
-        }
-    }
+            this.logger.info(`Created cron job: ${newJob.id} for guild: ${guildInstanceId}`);
 
-    static getSlashCommand() {
-        return new SlashCommandBuilder()
-            .setName("createtextchan")
-            .setDescription("Automatically creates text channels at regular intervals in a specified category.")
-            .addStringOption(option =>
-                option.setName("categoryid")
-                    .setDescription("ID of the category where the channel will be created")
-                    .setRequired(true)
-            )
-            .addStringOption(option =>
-                option.setName("day")
-                    .setDescription("Day of the week for channel creation (e.g., Monday)")
-                    .setRequired(true)
-            )
-            .addIntegerOption(option =>
-                option.setName("interval")
-                    .setDescription("Interval in days for channel creation")
-                    .setRequired(true)
-            )
-            .addStringOption(option =>
-                option.setName("channelname")
-                    .setDescription("Optional channel name (defaults to current date)")
-                    .setRequired(false)
-            );
+            await interaction.reply({
+                content: `✅ Tâche planifiée créée avec succès ! Le canal sera créé tous les ${interval} jours à 12:00.`,
+                ephemeral: false
+            });
+        } catch (error) {
+            this.logger.error("Error creating cron job:", error);
+            await interaction.reply({
+                content: "❌ Une erreur est survenue lors de l'ajout de la tâche planifiée.",
+                ephemeral: true
+            });
+        }
     }
 }

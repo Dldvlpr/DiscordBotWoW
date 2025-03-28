@@ -3,6 +3,7 @@ import { CronJob as CronJobJs } from 'cron';
 import { BaseHandler } from './BaseHandler';
 import { CronJob as CronJobModel } from '../models/cronJob';
 import { RaidHelperEvent } from '../models/raidHelperEvent';
+import { GuildInstance } from '../models/guildInstance';
 import { TextChannel } from 'discord.js';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';

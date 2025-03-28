@@ -70,6 +70,10 @@ const initModels = async (): Promise<void> => {
     const { default: WelcomeMessage } = await import('./welcomeMessage');
     const { default: BotCommand } = await import('./botCommand');
     const { default: BotAutoText } = await import('./botAutoText');
+    const { default: ApplicationForm } = await import('./applicationForm');
+    const { default: FormQuestion } = await import('./formQuestion');
+    const { default: PlayerApplication } = await import('./playerApplication');
+    const { default: ApplicationAnswer } = await import('./applicationAnswer');
 
     db.GuildInstance = GuildInstance;
     db.CronJob = CronJob;
@@ -77,6 +81,10 @@ const initModels = async (): Promise<void> => {
     db.WelcomeMessage = WelcomeMessage;
     db.BotCommand = BotCommand;
     db.BotAutoText = BotAutoText;
+    db.ApplicationForm = ApplicationForm;
+    db.FormQuestion = FormQuestion;
+    db.PlayerApplication = PlayerApplication;
+    db.ApplicationAnswer = ApplicationAnswer;
 
     GuildInstance.hasMany(CronJob, {
         foreignKey: 'guildInstanceId',
@@ -106,6 +114,56 @@ const initModels = async (): Promise<void> => {
     WelcomeMessage.belongsTo(GuildInstance, {
         foreignKey: 'guildInstanceId',
         as: 'guildInstance'
+    });
+
+    GuildInstance.hasMany(ApplicationForm, {
+        foreignKey: 'guildInstanceId',
+        as: 'applicationForms',
+        onDelete: 'CASCADE'
+    });
+    ApplicationForm.belongsTo(GuildInstance, {
+        foreignKey: 'guildInstanceId',
+        as: 'guildInstance'
+    });
+
+    ApplicationForm.hasMany(FormQuestion, {
+        foreignKey: 'applicationFormId',
+        as: 'questions',
+        onDelete: 'CASCADE'
+    });
+    FormQuestion.belongsTo(ApplicationForm, {
+        foreignKey: 'applicationFormId',
+        as: 'applicationForm'
+    });
+
+    ApplicationForm.hasMany(PlayerApplication, {
+        foreignKey: 'applicationFormId',
+        as: 'applications',
+        onDelete: 'CASCADE'
+    });
+    PlayerApplication.belongsTo(ApplicationForm, {
+        foreignKey: 'applicationFormId',
+        as: 'applicationForm'
+    });
+
+    PlayerApplication.hasMany(ApplicationAnswer, {
+        foreignKey: 'playerApplicationId',
+        as: 'answers',
+        onDelete: 'CASCADE'
+    });
+    ApplicationAnswer.belongsTo(PlayerApplication, {
+        foreignKey: 'playerApplicationId',
+        as: 'application'
+    });
+
+    FormQuestion.hasMany(ApplicationAnswer, {
+        foreignKey: 'questionId',
+        as: 'answers',
+        onDelete: 'CASCADE'
+    });
+    ApplicationAnswer.belongsTo(FormQuestion, {
+        foreignKey: 'questionId',
+        as: 'question'
     });
 
     console.log("✅ Modèles initialisés avec succès !");

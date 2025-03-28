@@ -54,9 +54,10 @@ export class CreateTextChanCommand extends Command {
         return true;
     }
 
-    getSlashCommand() {
-        return new SlashCommandBuilder()
-            .setName("createtextchan")
+    getSlashCommand(): Omit<SlashCommandBuilder, "addSubcommand" | "addSubcommandGroup"> {
+        const command = new SlashCommandBuilder();
+
+        command.setName("createtextchan")
             .setDescription("Crée automatiquement des canaux textuels à intervalles réguliers dans une catégorie spécifiée.")
             .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
             .addStringOption(option =>
@@ -91,10 +92,24 @@ export class CreateTextChanCommand extends Command {
                     .setDescription("Nom du canal (par défaut: date actuelle)")
                     .setRequired(false)
             );
+
+        // Conversion de type pour satisfaire la signature de la méthode abstraite
+        return command as Omit<SlashCommandBuilder, "addSubcommand" | "addSubcommandGroup">;
     }
 
     private async validateGuildInstance(interaction: ChatInputCommandInteraction): Promise<GuildInstance | null> {
-        const guildInstance = await GuildInstance.findOne({ where: { guildId: interaction.guildId }});
+        // Correction du problème avec guildId qui peut être null
+        if (!interaction.guildId) {
+            await interaction.reply({
+                content: "Cette commande ne peut être utilisée que sur un serveur.",
+                ephemeral: true
+            });
+            return null;
+        }
+
+        const guildInstance = await GuildInstance.findOne({
+            where: { guildId: interaction.guildId as string } // Assurer que guildId est une string
+        });
 
         if (!guildInstance) {
             await interaction.reply({

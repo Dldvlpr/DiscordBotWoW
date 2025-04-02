@@ -5,7 +5,7 @@ export abstract class BaseHandler {
     protected client: Client;
     protected logger: Logger;
 
-    protected constructor(client: Client) {
+    public constructor(client: Client) {
         this.client = client;
         this.logger = new Logger(this.constructor.name);
     }

@@ -1,60 +1,59 @@
-import { ChatInputCommandInteraction, Client, SlashCommandBuilder } from "discord.js";
-import { Logger } from "../utils/Logger";
+import { Client, Collection } from 'discord.js';
+import { Logger } from '../utils/Logger';
+import { Command } from '../commands/Command';
+import { PingCommand } from '../commands/PingCommand';
+import { WelcomeCommand } from '../commands/WelcomeCommand';
+import { CreateTextChanCommand } from '../commands/CreateTextChanCommand';
+import { CreateRaidHelperCommand } from '../commands/CreateRaidHelperCommand';
+import { ApplicationFormCommand } from '../commands/ApplicationFormCommand';
 
-export abstract class CommandHandler {
-    public readonly name: string;
-    protected logger: Logger;
+export class CommandHandler {
+    private commands: Collection<string, Command>;
+    private readonly client: Client;
+    private readonly logger: Logger;
 
-    protected constructor(name: string) {
-        this.name = name;
-        this.logger = new Logger(`Command:${name}`);
+    constructor(client: Client) {
+        this.client = client;
+        this.commands = new Collection();
+        this.logger = new Logger('CommandHandler');
     }
 
-    /**
-     * Execute the command based on the interaction received
-     * @param interaction The Discord interaction that triggered this command
-     * @param client The Discord client instance
-     */
-    abstract execute(interaction: ChatInputCommandInteraction, client: Client): Promise<void>;
-
-    /**
-     * Get the SlashCommandBuilder instance for this command
-     * This is used to register the command with Discord
-     *
-     * Modification: Changement du type de retour pour utiliser un type plus générique
-     * qui est compatible avec tous les types de builders de commandes Slash
-     */
-    abstract getSlashCommand(): SlashCommandBuilder;
-
-    /**
-     * Check if the command can be executed in the current context
-     * Override this method to add custom permission checks
-     *
-     * @param interaction The Discord interaction to check
-     * @returns true if the command can be executed, false otherwise
-     */
-    async canExecute(interaction: ChatInputCommandInteraction): Promise<boolean> {
-        return true;
-    }
-
-    /**
-     * Handle errors that occur during command execution
-     * @param interaction The Discord interaction where the error occurred
-     * @param error The error that was thrown
-     */
-    async handleError(interaction: ChatInputCommandInteraction, error: Error): Promise<void> {
-        this.logger.error(`Error executing command:`, error);
-
+    async initialize(): Promise<void> {
         try {
-            const content = 'Une erreur est survenue lors de l\'exécution de la commande.';
+            this.logger.info('Initializing command handler...');
 
-            if (interaction.replied || interaction.deferred) {
-                await interaction.followUp({ content, ephemeral: true });
-            } else {
-                await interaction.reply({ content, ephemeral: true });
-            }
-        } catch (replyError) {
-            this.logger.error('Failed to send error message:', replyError);
+            this.registerCommand(new PingCommand());
+            this.registerCommand(new WelcomeCommand());
+            this.registerCommand(new CreateTextChanCommand());
+            this.registerCommand(new CreateRaidHelperCommand());
+            this.registerCommand(new ApplicationFormCommand());
+
+            this.logger.info(`Registered ${this.commands.size} commands`);
+        } catch (error) {
+            this.logger.error('Error initializing command handler:', error);
+            throw error;
         }
+    }
+
+    private registerCommand(command: Command): void {
+        this.commands.set(command.name, command);
+        this.logger.debug(`Registered command: ${command.name}`);
+    }
+
+    /**
+     * Get a command by name
+     * @param name The name of the command to get
+     * @returns The command, or undefined if not found
+     */
+    getCommand(name: string): Command | undefined {
+        return this.commands.get(name);
+    }
+
+    /**
+     * Get all registered commands
+     * @returns An array of all commands
+     */
+    getCommands(): Command[] {
+        return Array.from(this.commands.values());
     }
 }

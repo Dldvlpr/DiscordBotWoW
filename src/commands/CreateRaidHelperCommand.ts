@@ -17,6 +17,7 @@ export class CreateRaidHelperCommand extends Command {
         const raidDescription = interaction.options.getString("description", false);
         const raidTime = interaction.options.getString("time", true);
         const templateId = interaction.options.getString("templateid", false);
+        const maxParticipants = interaction.options.getInteger("maxparticipants", false);
 
         if (!interaction.guildId) {
             await interaction.reply("Cette commande ne peut être utilisée que sur un serveur.");
@@ -82,15 +83,20 @@ export class CreateRaidHelperCommand extends Command {
                 guildInstanceId: guildInstance.id
             });
 
-            await RaidHelperEvent.create({
+            const raidHelperEventData: any = {
                 cronJobId: newCronJob.id,
                 raidName: raidName,
                 raidDescription: raidDescription || `Raid ${raidName}`,
                 raidTime: raidTime,
-                maxParticipants: 40,
                 channelId: channelId,
-                raidTemplateId: templateId
-            });
+                raidTemplateId: templateId || undefined
+            };
+
+            if (maxParticipants !== null) {
+                raidHelperEventData.maxParticipants = maxParticipants;
+            }
+
+            await RaidHelperEvent.create(raidHelperEventData);
 
             await interaction.reply(`✅ Événement RaidHelper créé avec succès ! Un événement sera créé tous les ${interval} jours pour le raid "${raidName}" à ${raidTime} dans le canal <#${channelId}>.`);
 
@@ -145,6 +151,13 @@ export class CreateRaidHelperCommand extends Command {
                     .setDescription("ID du template RaidHelper à utiliser")
                     .setRequired(false)
             )
+            .addIntegerOption(option =>
+                option.setName("maxparticipants")
+                    .setDescription("Nombre maximum de participants (optionnel)")
+                    .setRequired(false)
+                    .setMinValue(1)
+                    .setMaxValue(1000)
+            )
             .addBooleanOption(option =>
                 option.setName("test")
                     .setDescription("Envoyer immédiatement une commande de test?")
@@ -152,11 +165,7 @@ export class CreateRaidHelperCommand extends Command {
             );
     }
 
-    getSlashCommand(): ReturnType<typeof SlashCommandBuilder.prototype.setName> {
-        const command = new SlashCommandBuilder()
-            .setName("createraidhelper")
-            .setDescription("Crée automatiquement des événements RaidHelper à intervalles réguliers");
-
-        return command;
+    getSlashCommand() {
+        return CreateRaidHelperCommand.getSlashCommand() as SlashCommandBuilder;
     }
 }

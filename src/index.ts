@@ -1,7 +1,16 @@
 import dotenv from 'dotenv';
 dotenv.config({ path: '.env.local' });
-
 import { Bot } from './bot';
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('⚠️ Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+    console.error('⚠️ Uncaught Exception:', error);
+});
+
+
 
 console.log('✅ Configuration chargée avec succès.');
 console.log('🔍 Vérification des variables d\'environnement...');

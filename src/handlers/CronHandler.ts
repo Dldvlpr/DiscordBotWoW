@@ -17,22 +17,12 @@ export class CronHandler extends BaseHandler {
 
     async initialize(): Promise<void> {
         try {
-            if (!this.client.isReady()) {
-                await new Promise<void>((resolve) => {
-                    this.client.once('ready', () => resolve());
-                });
-            }
-
             this.logger.info('Initializing scheduled tasks...');
 
             this.stopAllJobs();
 
             const activeJobs = await CronJobModel.findAll({
-                where: { isActive: true },
-                include: [{
-                    model: RaidHelperEvent,
-                    as: 'raidHelperEvents'
-                }]
+                where: { isActive: true }
             });
 
             for (const job of activeJobs) {
@@ -42,10 +32,8 @@ export class CronHandler extends BaseHandler {
             this.logger.info(`${this.cronJobs.size} scheduled tasks initialized.`);
         } catch (error) {
             this.logger.error('Error initializing scheduled tasks:', error);
-            throw error;
         }
     }
-
     /**
      * Reinitialize all scheduled tasks
      * Useful when cron jobs are updated in the database
@@ -104,7 +92,6 @@ export class CronHandler extends BaseHandler {
             this.logger.error(`Error executing task ${cronJobModel.name}:`, error);
         }
     }
-
     private async createTextChannel(cronJobModel: CronJobModel): Promise<void> {
         try {
             const guildInstance = await GuildInstance.findByPk(cronJobModel.guildInstanceId);

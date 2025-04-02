@@ -55,15 +55,19 @@ export class Bot {
             await db.sequelize.sync({ alter: true });
             this.logger.info("Model synchronization complete.");
 
+            this.logger.info("Initializing command handler...");
             await this.commandHandler.initialize();
+            this.logger.info("Command handler initialized successfully.");
+
+            this.logger.info("Initializing event handler...");
             await this.eventHandler.initialize();
+            this.logger.info("Event handler initialized successfully.");
 
             this.logger.info("Connecting Discord bot...");
             await this.client.login(config[env].discord.token);
             this.logger.info("Bot connected successfully!");
         } catch (error) {
             this.logger.error("Error during startup:", error);
-            process.exit(1);
+            throw error;
         }
-    }
-}
+    }}

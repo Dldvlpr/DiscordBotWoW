@@ -37,7 +37,18 @@ export class WelcomeCommand extends Command {
     private async setWelcomeMessage(interaction: ChatInputCommandInteraction): Promise<void> {
         const message = interaction.options.getString("message", true);
 
-        let guildInstance = await GuildInstance.findOne({ where: { guildId: interaction.guildId } });
+        // S'assurer que guildId n'est pas null
+        if (!interaction.guildId) {
+            await interaction.reply({
+                content: "Cette commande ne peut être utilisée que sur un serveur.",
+                ephemeral: true
+            });
+            return;
+        }
+
+        let guildInstance = await GuildInstance.findOne({
+            where: { guildId: interaction.guildId as string }
+        });
 
         if (!guildInstance) {
             guildInstance = await GuildInstance.create({
@@ -67,7 +78,18 @@ export class WelcomeCommand extends Command {
     }
 
     private async disableWelcomeMessage(interaction: ChatInputCommandInteraction): Promise<void> {
-        const guildInstance = await GuildInstance.findOne({ where: { guildId: interaction.guildId } });
+        // S'assurer que guildId n'est pas null
+        if (!interaction.guildId) {
+            await interaction.reply({
+                content: "Cette commande ne peut être utilisée que sur un serveur.",
+                ephemeral: true
+            });
+            return;
+        }
+
+        const guildInstance = await GuildInstance.findOne({
+            where: { guildId: interaction.guildId as string }
+        });
 
         if (!guildInstance) {
             await interaction.reply("⚠️ Aucune configuration trouvée pour ce serveur.");
@@ -88,7 +110,18 @@ export class WelcomeCommand extends Command {
     }
 
     private async enableWelcomeMessage(interaction: ChatInputCommandInteraction): Promise<void> {
-        const guildInstance = await GuildInstance.findOne({ where: { guildId: interaction.guildId } });
+        // S'assurer que guildId n'est pas null
+        if (!interaction.guildId) {
+            await interaction.reply({
+                content: "Cette commande ne peut être utilisée que sur un serveur.",
+                ephemeral: true
+            });
+            return;
+        }
+
+        const guildInstance = await GuildInstance.findOne({
+            where: { guildId: interaction.guildId as string }
+        });
 
         if (!guildInstance) {
             await interaction.reply("⚠️ Aucune configuration trouvée pour ce serveur.");
@@ -109,7 +142,18 @@ export class WelcomeCommand extends Command {
     }
 
     private async testWelcomeMessage(interaction: ChatInputCommandInteraction, client: Client): Promise<void> {
-        const guildInstance = await GuildInstance.findOne({ where: { guildId: interaction.guildId } });
+        // S'assurer que guildId n'est pas null
+        if (!interaction.guildId) {
+            await interaction.reply({
+                content: "Cette commande ne peut être utilisée que sur un serveur.",
+                ephemeral: true
+            });
+            return;
+        }
+
+        const guildInstance = await GuildInstance.findOne({
+            where: { guildId: interaction.guildId as string }
+        });
 
         if (!guildInstance) {
             await interaction.reply("⚠️ Aucune configuration trouvée pour ce serveur.");
@@ -117,7 +161,10 @@ export class WelcomeCommand extends Command {
         }
 
         const welcomeMessage = await WelcomeMessage.findOne({
-            where: { guildInstanceId: guildInstance.id }
+            where: {
+                guildInstanceId: guildInstance.id,
+                isEnabled: true
+            }
         });
 
         if (!welcomeMessage || !welcomeMessage.isEnabled) {
@@ -168,5 +215,13 @@ export class WelcomeCommand extends Command {
                     .setName("test")
                     .setDescription("Teste le message de bienvenue (vous recevrez un MP)")
             );
+    }
+
+    getSlashCommand(): ReturnType<typeof SlashCommandBuilder.prototype.setName> {
+        const command = new SlashCommandBuilder()
+            .setName("welcome")
+            .setDescription("Gère les messages de bienvenue");
+
+        return command;
     }
 }

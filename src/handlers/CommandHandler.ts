@@ -1,63 +1,60 @@
-import { Client, Collection } from 'discord.js';
-import { Command } from "../commands/Command";
-import { PingCommand } from '../commands/PingCommand';
-import { CreateTextChanCommand } from "../commands/CreateTextChanCommand";
-import { WelcomeCommand } from '../commands/WelcomeCommand';
-import { CreateRaidHelperCommand } from '../commands/CreateRaidHelperCommand';
-import { ApplicationFormCommand } from '../commands/ApplicationFormCommand';
-import { BaseHandler } from './BaseHandler';
+import { ChatInputCommandInteraction, Client, SlashCommandBuilder } from "discord.js";
+import { Logger } from "../utils/Logger";
 
-export class CommandHandler extends BaseHandler {
-    private commands: Collection<string, Command>;
+export abstract class CommandHandler {
+    public readonly name: string;
+    protected logger: Logger;
 
-    constructor(client: Client) {
-        super(client);
-        this.commands = new Collection();
+    protected constructor(name: string) {
+        this.name = name;
+        this.logger = new Logger(`Command:${name}`);
     }
 
-    async initialize(): Promise<void> {
-        this.loadCommands();
-        this.logger.info(`Loaded ${this.commands.size} commands`);
+    /**
+     * Execute the command based on the interaction received
+     * @param interaction The Discord interaction that triggered this command
+     * @param client The Discord client instance
+     */
+    abstract execute(interaction: ChatInputCommandInteraction, client: Client): Promise<void>;
+
+    /**
+     * Get the SlashCommandBuilder instance for this command
+     * This is used to register the command with Discord
+     *
+     * Modification: Changement du type de retour pour utiliser un type plus générique
+     * qui est compatible avec tous les types de builders de commandes Slash
+     */
+    abstract getSlashCommand(): SlashCommandBuilder;
+
+    /**
+     * Check if the command can be executed in the current context
+     * Override this method to add custom permission checks
+     *
+     * @param interaction The Discord interaction to check
+     * @returns true if the command can be executed, false otherwise
+     */
+    async canExecute(interaction: ChatInputCommandInteraction): Promise<boolean> {
+        return true;
     }
 
-    private loadCommands(): void {
-        const commandList = [
-            new PingCommand(),
-            new CreateTextChanCommand(),
-            new WelcomeCommand(),
-            new CreateRaidHelperCommand(),
-            new ApplicationFormCommand()
-        ];
+    /**
+     * Handle errors that occur during command execution
+     * @param interaction The Discord interaction where the error occurred
+     * @param error The error that was thrown
+     */
+    async handleError(interaction: ChatInputCommandInteraction, error: Error): Promise<void> {
+        this.logger.error(`Error executing command:`, error);
 
-        for (const command of commandList) {
-            this.commands.set(command.name.toLowerCase(), command);
-            this.logger.debug(`Loaded command: ${command.name}`);
+        try {
+            const content = 'Une erreur est survenue lors de l\'exécution de la commande.';
+
+            if (interaction.replied || interaction.deferred) {
+                await interaction.followUp({ content, ephemeral: true });
+            } else {
+                await interaction.reply({ content, ephemeral: true });
+            }
+        } catch (replyError) {
+            this.logger.error('Failed to send error message:', replyError);
         }
-    }
-
-    /**
-     * Add a command dynamically to the handler
-     * @param command Command instance to add
-     */
-    public addCommand(command: Command): void {
-        this.commands.set(command.name.toLowerCase(), command);
-        this.logger.debug(`Added command dynamically: ${command.name}`);
-    }
-
-    /**
-     * Get all registered commands
-     * @returns Array of Command instances
-     */
-    public getCommands(): Command[] {
-        return Array.from(this.commands.values());
-    }
-
-    /**
-     * Get a command by name
-     * @param name Command name
-     * @returns Command instance or undefined if not found
-     */
-    public getCommand(name: string): Command | undefined {
-        return this.commands.get(name.toLowerCase());
     }
 }

@@ -151,4 +151,12 @@ export class CreateRaidHelperCommand extends Command {
                     .setRequired(false)
             );
     }
+
+    getSlashCommand(): ReturnType<typeof SlashCommandBuilder.prototype.setName> {
+        const command = new SlashCommandBuilder()
+            .setName("createraidhelper")
+            .setDescription("Crée automatiquement des événements RaidHelper à intervalles réguliers");
+
+        return command;
+    }
 }

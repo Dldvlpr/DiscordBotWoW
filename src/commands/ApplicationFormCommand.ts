@@ -1,8 +1,16 @@
-import { ChatInputCommandInteraction, Client, SlashCommandBuilder, PermissionFlagsBits, TextChannel, ChannelType, Role } from "discord.js";
-import { Command } from "./Command";
-import guildInstance, { GuildInstance } from "../models/guildInstance";
-import { ApplicationForm } from "../models/applicationForm";
-import { FormQuestion } from "../models/formQuestion";
+import {
+    ChannelType,
+    ChatInputCommandInteraction,
+    Client,
+    PermissionFlagsBits,
+    Role,
+    SlashCommandBuilder,
+    TextChannel
+} from "discord.js";
+import {Command} from "./Command";
+import {GuildInstance} from "../models/guildInstance";
+import {ApplicationForm} from "../models/applicationForm";
+import {FormQuestion} from "../models/formQuestion";
 import * as console from "node:console";
 
 export class ApplicationFormCommand extends Command {
@@ -80,24 +88,13 @@ export class ApplicationFormCommand extends Command {
             }
 
             if (!interaction.guildId) {
-                await interaction.reply({
-                    content: "Cette commande ne peut être utilisée que sur un serveur.",
-                    ephemeral: true
-                });
+                await interaction.editReply("Cette commande ne peut être utilisée que sur un serveur.");
                 return;
             }
 
             let guildInstance = await GuildInstance.findOne({
-                where: { guildId: interaction.guildId }
+                where: { guildId: interaction.guildId as string }
             });
-
-            if (!guildInstance) {
-                await interaction.reply({
-                    content: "Aucune configuration n'a été trouvée pour ce serveur.",
-                    ephemeral: true
-                });
-                return;
-            }
 
             if (!guildInstance) {
                 guildInstance = await GuildInstance.create({
@@ -121,7 +118,7 @@ export class ApplicationFormCommand extends Command {
             const newForm = await ApplicationForm.create({
                 guildInstanceId: guildInstance.id,
                 title: title,
-                description: description,
+                description: description || undefined,
                 isActive: true,
                 notificationChannelId: notificationChannel?.id,
                 applicationChannelId: applicationChannel?.id,
@@ -154,8 +151,13 @@ export class ApplicationFormCommand extends Command {
                 return;
             }
 
+            if (!interaction.guildId) {
+                await interaction.editReply("Cette commande ne peut être utilisée que sur un serveur.");
+                return;
+            }
+
             const guildInstance = await GuildInstance.findOne({
-                where: { guildId: interaction.guildId }
+                where: { guildId: interaction.guildId as string }
             });
 
             if (!guildInstance || form.guildInstanceId !== guildInstance.id) {
@@ -204,27 +206,16 @@ export class ApplicationFormCommand extends Command {
 
         try {
             if (!interaction.guildId) {
-                await interaction.reply({
-                    content: "Cette commande ne peut être utilisée que sur un serveur.",
-                    ephemeral: true
-                });
+                await interaction.editReply("Cette commande ne peut être utilisée que sur un serveur.");
                 return;
             }
 
             const guildInstance = await GuildInstance.findOne({
-                where: { guildId: interaction.guildId }
+                where: { guildId: interaction.guildId as string }
             });
 
             if (!guildInstance) {
-                await interaction.reply({
-                    content: "Aucune configuration n'a été trouvée pour ce serveur.",
-                    ephemeral: true
-                });
-                return;
-            }
-
-            if (!guildInstance) {
-                await interaction.editReply("Aucun formulaire n'a été configuré pour ce serveur.");
+                await interaction.editReply("Aucune configuration n'a été trouvée pour ce serveur.");
                 return;
             }
 
@@ -272,24 +263,13 @@ export class ApplicationFormCommand extends Command {
             }
 
             if (!interaction.guildId) {
-                await interaction.reply({
-                    content: "Cette commande ne peut être utilisée que sur un serveur.",
-                    ephemeral: true
-                });
+                await interaction.editReply("Cette commande ne peut être utilisée que sur un serveur.");
                 return;
             }
 
             const guildInstance = await GuildInstance.findOne({
-                where: { guildId: interaction.guildId }
+                where: { guildId: interaction.guildId as string }
             });
-
-            if (!guildInstance) {
-                await interaction.reply({
-                    content: "Aucune configuration n'a été trouvée pour ce serveur.",
-                    ephemeral: true
-                });
-                return;
-            }
 
             if (!guildInstance || form.guildInstanceId !== guildInstance.id) {
                 await interaction.editReply("Ce formulaire n'appartient pas à ce serveur.");
@@ -377,24 +357,13 @@ export class ApplicationFormCommand extends Command {
             }
 
             if (!interaction.guildId) {
-                await interaction.reply({
-                    content: "Cette commande ne peut être utilisée que sur un serveur.",
-                    ephemeral: true
-                });
+                await interaction.editReply("Cette commande ne peut être utilisée que sur un serveur.");
                 return;
             }
 
             const guildInstance = await GuildInstance.findOne({
-                where: { guildId: interaction.guildId }
+                where: { guildId: interaction.guildId as string }
             });
-
-            if (!guildInstance) {
-                await interaction.reply({
-                    content: "Aucune configuration n'a été trouvée pour ce serveur.",
-                    ephemeral: true
-                });
-                return;
-            }
 
             if (!guildInstance || form.guildInstanceId !== guildInstance.id) {
                 await interaction.editReply("Ce formulaire n'appartient pas à ce serveur.");
@@ -432,24 +401,13 @@ export class ApplicationFormCommand extends Command {
             }
 
             if (!interaction.guildId) {
-                await interaction.reply({
-                    content: "Cette commande ne peut être utilisée que sur un serveur.",
-                    ephemeral: true
-                });
+                await interaction.editReply("Cette commande ne peut être utilisée que sur un serveur.");
                 return;
             }
 
             const guildInstance = await GuildInstance.findOne({
-                where: { guildId: interaction.guildId }
+                where: { guildId: interaction.guildId as string }
             });
-
-            if (!guildInstance) {
-                await interaction.reply({
-                    content: "Aucune configuration n'a été trouvée pour ce serveur.",
-                    ephemeral: true
-                });
-                return;
-            }
 
             if (!guildInstance || form.guildInstanceId !== guildInstance.id) {
                 await interaction.editReply("Ce formulaire n'appartient pas à ce serveur.");
@@ -468,6 +426,13 @@ export class ApplicationFormCommand extends Command {
             console.error("Erreur lors de la suppression du formulaire:", error);
             await interaction.editReply("❌ Une erreur est survenue lors de la suppression du formulaire.");
         }
+    }
+
+    getSlashCommand(): ReturnType<typeof SlashCommandBuilder.prototype.setName> {
+        return new SlashCommandBuilder()
+            .setName("applicationform")
+            .setDescription("Gérer les formulaires de candidature")
+            .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
     }
 
     static getSlashCommand() {
@@ -593,12 +558,5 @@ export class ApplicationFormCommand extends Command {
                             .setRequired(true)
                     )
             );
-    }
-
-    getSlashCommand(): Omit<SlashCommandBuilder, "addSubcommand" | "addSubcommandGroup"> {
-        return new SlashCommandBuilder()
-            .setName("applicationform")
-            .setDescription("Gérer les formulaires de candidature")
-            .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
     }
 }

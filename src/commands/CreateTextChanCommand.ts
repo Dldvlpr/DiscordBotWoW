@@ -1,7 +1,8 @@
 import { ChatInputCommandInteraction, Client, SlashCommandBuilder, CategoryChannel, PermissionFlagsBits, PermissionsBitField } from "discord.js";
 import { Command } from "./Command";
 import { CronJob } from "../models/cronJob";
-import { GuildInstance } from "../models/guildInstance";
+import guildInstance, { GuildInstance } from "../models/guildInstance";
+import {Error} from "sequelize";
 
 export class CreateTextChanCommand extends Command {
     constructor() {
@@ -54,7 +55,47 @@ export class CreateTextChanCommand extends Command {
         return true;
     }
 
-    getSlashCommand(): Omit<SlashCommandBuilder, "addSubcommand" | "addSubcommandGroup"> {
+    getSlashCommand() {
+        const command = new SlashCommandBuilder()
+            .setName("createtextchan")
+            .setDescription("Crée automatiquement des canaux textuels à intervalles réguliers dans une catégorie spécifiée.")
+            .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
+            .addStringOption(option =>
+                option.setName("categoryid")
+                    .setDescription("ID de la catégorie où le canal sera créé")
+                    .setRequired(true)
+            )
+            .addStringOption(option =>
+                option.setName("day")
+                    .setDescription("Jour de la semaine pour la création du canal (ex: Lundi)")
+                    .setRequired(true)
+                    .addChoices(
+                        { name: "Lundi", value: "monday" },
+                        { name: "Mardi", value: "tuesday" },
+                        { name: "Mercredi", value: "wednesday" },
+                        { name: "Jeudi", value: "thursday" },
+                        { name: "Vendredi", value: "friday" },
+                        { name: "Samedi", value: "saturday" },
+                        { name: "Dimanche", value: "sunday" },
+                        { name: "Tous les jours", value: "everyday" }
+                    )
+            )
+            .addIntegerOption(option =>
+                option.setName("interval")
+                    .setDescription("Intervalle en jours pour la création du canal")
+                    .setRequired(true)
+                    .setMinValue(1)
+                    .setMaxValue(30)
+            )
+            .addStringOption(option =>
+                option.setName("channelname")
+                    .setDescription("Nom du canal (par défaut: date actuelle)")
+                    .setRequired(false)
+            );
+
+        return command as SlashCommandBuilder;
+    }
+    static getSlashCommand() {
         const command = new SlashCommandBuilder();
 
         command.setName("createtextchan")
@@ -93,12 +134,9 @@ export class CreateTextChanCommand extends Command {
                     .setRequired(false)
             );
 
-        // Conversion de type pour satisfaire la signature de la méthode abstraite
-        return command as Omit<SlashCommandBuilder, "addSubcommand" | "addSubcommandGroup">;
+        return command;
     }
-
     private async validateGuildInstance(interaction: ChatInputCommandInteraction): Promise<GuildInstance | null> {
-        // Correction du problème avec guildId qui peut être null
         if (!interaction.guildId) {
             await interaction.reply({
                 content: "Cette commande ne peut être utilisée que sur un serveur.",
@@ -108,7 +146,7 @@ export class CreateTextChanCommand extends Command {
         }
 
         const guildInstance = await GuildInstance.findOne({
-            where: { guildId: interaction.guildId as string } // Assurer que guildId est une string
+            where: { guildId: interaction.guildId as string }
         });
 
         if (!guildInstance) {

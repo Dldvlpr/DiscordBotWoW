@@ -1,7 +1,7 @@
-import { ChatInputCommandInteraction, Client, SlashCommandBuilder } from "discord.js";
-import { Command } from "./Command";
-import { GuildInstance } from "../models/guildInstance";
-import { WelcomeMessage } from "../models/welcomeMessage";
+import {ChatInputCommandInteraction, Client, SlashCommandBuilder} from "discord.js";
+import {Command} from "./Command";
+import {GuildInstance} from "../models/guildInstance";
+import {WelcomeMessage} from "../models/welcomeMessage";
 
 export class WelcomeCommand extends Command {
     constructor() {
@@ -29,6 +29,9 @@ export class WelcomeCommand extends Command {
             case "test":
                 await this.testWelcomeMessage(interaction, client);
                 break;
+            case "delete":
+                await this.deleteWelcomeMessage(interaction);
+                break;
             default:
                 await interaction.reply("Sous-commande inconnue.");
         }
@@ -37,7 +40,6 @@ export class WelcomeCommand extends Command {
     private async setWelcomeMessage(interaction: ChatInputCommandInteraction): Promise<void> {
         const message = interaction.options.getString("message", true);
 
-        // S'assurer que guildId n'est pas null
         if (!interaction.guildId) {
             await interaction.reply({
                 content: "Cette commande ne peut être utilisée que sur un serveur.",
@@ -78,7 +80,6 @@ export class WelcomeCommand extends Command {
     }
 
     private async disableWelcomeMessage(interaction: ChatInputCommandInteraction): Promise<void> {
-        // S'assurer que guildId n'est pas null
         if (!interaction.guildId) {
             await interaction.reply({
                 content: "Cette commande ne peut être utilisée que sur un serveur.",
@@ -110,7 +111,6 @@ export class WelcomeCommand extends Command {
     }
 
     private async enableWelcomeMessage(interaction: ChatInputCommandInteraction): Promise<void> {
-        // S'assurer que guildId n'est pas null
         if (!interaction.guildId) {
             await interaction.reply({
                 content: "Cette commande ne peut être utilisée que sur un serveur.",
@@ -141,8 +141,47 @@ export class WelcomeCommand extends Command {
         await interaction.reply("✅ Message de bienvenue activé.");
     }
 
+    private async deleteWelcomeMessage(interaction: ChatInputCommandInteraction): Promise<void> {
+        if (!interaction.guildId) {
+            await interaction.reply({
+                content: "Cette commande ne peut être utilisée que sur un serveur.",
+                ephemeral: true
+            });
+            return;
+        }
+
+        const confirmation = interaction.options.getString("confirmation", true);
+        if (confirmation.toLowerCase() !== "confirmer") {
+            await interaction.reply({
+                content: "❌ Suppression annulée. Pour supprimer le message de bienvenue, tapez 'confirmer'.",
+                ephemeral: true
+            });
+            return;
+        }
+
+        const guildInstance = await GuildInstance.findOne({
+            where: { guildId: interaction.guildId as string }
+        });
+
+        if (!guildInstance) {
+            await interaction.reply("⚠️ Aucune configuration trouvée pour ce serveur.");
+            return;
+        }
+
+        const welcomeMessage = await WelcomeMessage.findOne({
+            where: { guildInstanceId: guildInstance.id }
+        });
+
+        if (!welcomeMessage) {
+            await interaction.reply("⚠️ Aucun message de bienvenue configuré pour ce serveur.");
+            return;
+        }
+
+        await welcomeMessage.destroy();
+        await interaction.reply("✅ Message de bienvenue supprimé avec succès.");
+    }
+
     private async testWelcomeMessage(interaction: ChatInputCommandInteraction, client: Client): Promise<void> {
-        // S'assurer que guildId n'est pas null
         if (!interaction.guildId) {
             await interaction.reply({
                 content: "Cette commande ne peut être utilisée que sur un serveur.",
@@ -214,14 +253,22 @@ export class WelcomeCommand extends Command {
                 subcommand
                     .setName("test")
                     .setDescription("Teste le message de bienvenue (vous recevrez un MP)")
+            )
+            .addSubcommand(subcommand =>
+                subcommand
+                    .setName("delete")
+                    .setDescription("Supprime complètement le message de bienvenue")
+                    .addStringOption(option =>
+                        option.setName("confirmation")
+                            .setDescription("Tapez 'confirmer' pour supprimer le message de bienvenue")
+                            .setRequired(true)
+                    )
             );
     }
 
     getSlashCommand(): ReturnType<typeof SlashCommandBuilder.prototype.setName> {
-        const command = new SlashCommandBuilder()
+        return new SlashCommandBuilder()
             .setName("welcome")
             .setDescription("Gère les messages de bienvenue");
-
-        return command;
     }
 }

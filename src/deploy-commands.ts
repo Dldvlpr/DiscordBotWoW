@@ -38,6 +38,9 @@ const rest = new REST({ version: "10" }).setToken(token);
         console.log("🔍 Récupération des commandes...");
 
         const commands = commandHandler.getCommands().map(cmd => {
+            if ('getSlashCommand' in cmd.constructor && typeof cmd.constructor.getSlashCommand === 'function') {
+                return cmd.constructor.getSlashCommand().toJSON();
+            }
             return cmd.getSlashCommand().toJSON();
         });
 

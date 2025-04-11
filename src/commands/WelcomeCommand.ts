@@ -14,26 +14,42 @@ export class WelcomeCommand extends Command {
             return;
         }
 
-        const subcommand = interaction.options.getSubcommand();
+        try {
+            const subcommand = interaction.options.getSubcommand(false);
 
-        switch (subcommand) {
-            case "set":
-                await this.setWelcomeMessage(interaction);
-                break;
-            case "disable":
-                await this.disableWelcomeMessage(interaction);
-                break;
-            case "enable":
-                await this.enableWelcomeMessage(interaction);
-                break;
-            case "test":
-                await this.testWelcomeMessage(interaction, client);
-                break;
-            case "delete":
-                await this.deleteWelcomeMessage(interaction);
-                break;
-            default:
-                await interaction.reply("Sous-commande inconnue.");
+            if (!subcommand) {
+                await interaction.reply({
+                    content: "Veuillez utiliser une sous-commande : `/welcome set`, `/welcome enable`, `/welcome disable`, `/welcome test`, ou `/welcome delete`",
+                    ephemeral: true
+                });
+                return;
+            }
+
+            switch (subcommand) {
+                case "set":
+                    await this.setWelcomeMessage(interaction);
+                    break;
+                case "disable":
+                    await this.disableWelcomeMessage(interaction);
+                    break;
+                case "enable":
+                    await this.enableWelcomeMessage(interaction);
+                    break;
+                case "test":
+                    await this.testWelcomeMessage(interaction, client);
+                    break;
+                case "delete":
+                    await this.deleteWelcomeMessage(interaction);
+                    break;
+                default:
+                    await interaction.reply("Sous-commande inconnue.");
+            }
+        } catch (error) {
+            this.logger.error(`Error in welcome command:`, error);
+            await interaction.reply({
+                content: "Une erreur s'est produite lors de l'exécution de la commande.",
+                ephemeral: true
+            });
         }
     }
 
@@ -232,10 +248,10 @@ export class WelcomeCommand extends Command {
             .addSubcommand(subcommand =>
                 subcommand
                     .setName("set")
-                    .setDescription("Configure le message de bienvenue (envoyé en MP)")
+                    .setDescription("Configure le message de bienvenue")
                     .addStringOption(option =>
                         option.setName("message")
-                            .setDescription("Message de bienvenue. Utilisez {user} pour le nom, {usermention} pour mentionner et {server} pour le serveur")
+                            .setDescription("Message avec variables: {user}, {usermention}, {server}")
                             .setRequired(true)
                     )
             )
@@ -257,10 +273,10 @@ export class WelcomeCommand extends Command {
             .addSubcommand(subcommand =>
                 subcommand
                     .setName("delete")
-                    .setDescription("Supprime complètement le message de bienvenue")
+                    .setDescription("Supprime le message de bienvenue")
                     .addStringOption(option =>
                         option.setName("confirmation")
-                            .setDescription("Tapez 'confirmer' pour supprimer le message de bienvenue")
+                            .setDescription("Tapez 'confirmer' pour supprimer")
                             .setRequired(true)
                     )
             );

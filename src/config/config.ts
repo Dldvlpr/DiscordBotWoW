@@ -54,7 +54,7 @@ const config: Config = {
   },
   production: {
     ...commonDBConfig as DBConfig,
-    database: process.env.DB_NAME ? `${process.env.DB_NAME}_production` : 'discordBot_production',
+    database: process.env.DB_NAME ? `${process.env.DB_NAME}` : 'discordBot_production',
     discord: discordConfig,
   },
 };

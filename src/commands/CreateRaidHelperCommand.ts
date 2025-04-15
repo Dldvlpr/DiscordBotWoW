@@ -1,4 +1,4 @@
-import { ChatInputCommandInteraction, Client, SlashCommandBuilder, TextChannel } from "discord.js";
+import {ChatInputCommandInteraction, Client, PermissionFlagsBits, SlashCommandBuilder, TextChannel} from "discord.js";
 import { Command } from "./Command";
 import { CronJob } from "../models/cronJob";
 import { GuildInstance } from "../models/guildInstance";
@@ -18,6 +18,14 @@ export class CreateRaidHelperCommand extends Command {
         const raidTime = interaction.options.getString("time", true);
         const templateId = interaction.options.getString("templateid", false);
         const maxParticipants = interaction.options.getInteger("maxparticipants", false);
+
+        if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+            await interaction.reply({
+                content: "Vous devez être administrateur pour utiliser cette commande.",
+                ephemeral: true
+            });
+            return;
+        }
 
         if (!interaction.guildId) {
             await interaction.reply("Cette commande ne peut être utilisée que sur un serveur.");

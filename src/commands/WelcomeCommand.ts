@@ -1,4 +1,4 @@
-import {ChatInputCommandInteraction, Client, SlashCommandBuilder} from "discord.js";
+import {ChatInputCommandInteraction, Client, PermissionFlagsBits, SlashCommandBuilder} from "discord.js";
 import {Command} from "./Command";
 import {GuildInstance} from "../models/guildInstance";
 import {WelcomeMessage} from "../models/welcomeMessage";
@@ -9,6 +9,14 @@ export class WelcomeCommand extends Command {
     }
 
     async execute(interaction: ChatInputCommandInteraction, client: Client): Promise<void> {
+        if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+            await interaction.reply({
+                content: "Vous devez être administrateur pour utiliser cette commande.",
+                ephemeral: true
+            });
+            return;
+        }
+
         if (!interaction.guildId) {
             await interaction.reply("Cette commande ne peut être utilisée que sur un serveur.");
             return;

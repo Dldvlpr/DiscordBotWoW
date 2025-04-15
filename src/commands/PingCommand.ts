@@ -1,4 +1,4 @@
-import { ChatInputCommandInteraction, Client, SlashCommandBuilder } from "discord.js";
+import {ChatInputCommandInteraction, Client, PermissionFlagsBits, SlashCommandBuilder} from "discord.js";
 import { Command } from "./Command";
 
 export class PingCommand extends Command {
@@ -8,6 +8,14 @@ export class PingCommand extends Command {
 
     async execute(interaction: ChatInputCommandInteraction, client: Client): Promise<void> {
         try {
+            if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+                await interaction.reply({
+                    content: "Vous devez être administrateur pour utiliser cette commande.",
+                    ephemeral: true
+                });
+                return;
+            }
+
             const sent = await interaction.deferReply({ fetchReply: true });
             const pingLatency = sent.createdTimestamp - interaction.createdTimestamp;
 

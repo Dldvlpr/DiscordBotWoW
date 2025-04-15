@@ -1,12 +1,11 @@
-import { Client } from 'discord.js';
-import { CronJob as CronJobJs } from 'cron';
-import { BaseHandler } from './BaseHandler';
-import { CronJob as CronJobModel } from '../models/cronJob';
-import { RaidHelperEvent } from '../models/raidHelperEvent';
-import { GuildInstance } from '../models/guildInstance';
-import { TextChannel } from 'discord.js';
-import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import {Client, TextChannel} from 'discord.js';
+import {CronJob as CronJobJs} from 'cron';
+import {BaseHandler} from './BaseHandler';
+import {CronJob as CronJobModel} from '../models/cronJob';
+import {RaidHelperEvent} from '../models/raidHelperEvent';
+import {GuildInstance} from '../models/guildInstance';
+import {format} from 'date-fns';
+import {fr} from 'date-fns/locale';
 
 export class CronHandler extends BaseHandler {
     private cronJobs: Map<string, CronJobJs> = new Map();
@@ -22,7 +21,7 @@ export class CronHandler extends BaseHandler {
             this.stopAllJobs();
 
             const activeJobs = await CronJobModel.findAll({
-                where: { isActive: true }
+                where: {isActive: true}
             });
 
             for (const job of activeJobs) {
@@ -34,6 +33,7 @@ export class CronHandler extends BaseHandler {
             this.logger.error('Error initializing scheduled tasks:', error);
         }
     }
+
     /**
      * Reinitialize all scheduled tasks
      * Useful when cron jobs are updated in the database
@@ -79,7 +79,7 @@ export class CronHandler extends BaseHandler {
             }
 
             const raidHelperEvent = await RaidHelperEvent.findOne({
-                where: { cronJobId: cronJobModel.id }
+                where: {cronJobId: cronJobModel.id}
             });
 
             if (raidHelperEvent) {
@@ -92,6 +92,7 @@ export class CronHandler extends BaseHandler {
             this.logger.error(`Error executing task ${cronJobModel.name}:`, error);
         }
     }
+
     private async createTextChannel(cronJobModel: CronJobModel): Promise<void> {
         try {
             const guildInstance = await GuildInstance.findByPk(cronJobModel.guildInstanceId);
@@ -101,8 +102,11 @@ export class CronHandler extends BaseHandler {
             if (!guild) return;
 
             const today = new Date();
-            const channelName = `${cronJobModel.name}-${format(today, 'yyyy-MM-dd')}`;
-
+            const formattedDate = format(today, 'yyyy-MM-dd');
+            const shouldIncludeDate = cronJobModel.description?.includes("NO_DATE") !== true;
+            const channelName = shouldIncludeDate
+                ? `${cronJobModel.name}-${formattedDate}`
+                : cronJobModel.name;
             const channel = await guild.channels.create({
                 name: channelName,
                 type: 0,
@@ -125,7 +129,7 @@ export class CronHandler extends BaseHandler {
             }
 
             const today = new Date();
-            const formattedDate = format(today, 'dd-MMMM-yyyy', { locale: fr });
+            const formattedDate = format(today, 'dd-MMMM-yyyy', {locale: fr});
             const formattedTime = raidHelperEvent.raidTime || '20:00';
 
             let command = `/raidhelper create`;

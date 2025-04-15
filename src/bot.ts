@@ -7,6 +7,7 @@ import { CommandHandler } from './handlers/CommandHandler';
 import { EventHandler } from './handlers/EventHandler';
 import { Logger, LogLevel } from './utils/Logger';
 import db from './models';
+import { initializeRepositories } from './repositories/initialize';
 
 const env = (process.env.NODE_ENV as 'development' | 'test' | 'production') || 'development';
 
@@ -55,6 +56,10 @@ export class Bot {
             await db.sequelize.sync({ alter: true });
             this.logger.info("Model synchronization complete.");
 
+            this.logger.info("Initializing repositories...");
+            initializeRepositories();
+            this.logger.info("Repositories initialized successfully.");
+
             this.logger.info("Initializing command handler...");
             await this.commandHandler.initialize();
             this.logger.info("Command handler initialized successfully.");
@@ -70,4 +75,5 @@ export class Bot {
             this.logger.error("Error during startup:", error);
             throw error;
         }
-    }}
+    }
+}

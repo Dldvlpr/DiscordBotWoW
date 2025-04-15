@@ -1,16 +1,14 @@
-// src/deploy-commands.ts
 import dotenv from 'dotenv';
 import { REST, Routes } from "discord.js";
 import { CommandHandler } from "./handlers/CommandHandler";
 import { Client, GatewayIntentBits } from "discord.js";
-import configModule from "./config/config"; // Modifiez cette ligne
+import configModule from "./config/config";
 
 dotenv.config({ path: '.env.local' });
 
 const env = (process.env.NODE_ENV || 'development') as 'development' | 'test' | 'production';
-const config = configModule; // Assurez-vous que c'est la bonne structure
+const config = configModule;
 
-// Vérifiez d'abord que la configuration est chargée correctement
 console.log("Configuration chargée:", env, config && typeof config === 'object');
 
 const dummyClient = new Client({
@@ -19,7 +17,6 @@ const dummyClient = new Client({
 
 const commandHandler = new CommandHandler(dummyClient);
 
-// Utilisez les valeurs d'environnement directement en cas de problème
 const token = config?.[env]?.discord?.token || process.env.DISCORD_TOKEN;
 const clientId = config?.[env]?.discord?.clientId || process.env.DISCORD_CLIENT_ID;
 const guildId = config?.[env]?.discord?.guildId || process.env.DISCORD_GUILD_ID;
@@ -38,11 +35,22 @@ const rest = new REST({ version: "10" }).setToken(token);
         console.log("🔍 Récupération des commandes...");
 
         const commands = commandHandler.getCommands().map(cmd => {
+            const uniqueCommands = new Map();
+
             if ('getSlashCommand' in cmd.constructor && typeof cmd.constructor.getSlashCommand === 'function') {
-                return cmd.constructor.getSlashCommand().toJSON();
+                const slash = cmd.constructor.getSlashCommand().toJSON();
+                if (!uniqueCommands.has(slash.name)) {
+                    uniqueCommands.set(slash.name, slash);
+                }
+            } else {
+                const slash = cmd.getSlashCommand().toJSON();
+                if (!uniqueCommands.has(slash.name)) {
+                    uniqueCommands.set(slash.name, slash);
+                }
             }
-            return cmd.getSlashCommand().toJSON();
-        });
+
+            return Array.from(uniqueCommands.values());
+        }).flat();
 
         console.log("🚀 Déploiement des commandes...");
         await rest.put(

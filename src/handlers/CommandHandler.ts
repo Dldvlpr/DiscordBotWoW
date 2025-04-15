@@ -36,6 +36,11 @@ export class CommandHandler {
     }
 
     private registerCommand(command: Command): void {
+        if (this.commands.has(command.name)) {
+            this.logger.warn(`Command with name '${command.name}' is already registered. Skipping.`);
+            return;
+        }
+
         this.commands.set(command.name, command);
         this.logger.debug(`Registered command: ${command.name}`);
     }

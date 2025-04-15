@@ -127,75 +127,96 @@ export class CreateTextChanCommand extends Command {
         await interaction.deferReply();
 
         const jobId = interaction.options.getString("id", true);
-        const job = await CronJob.findByPk(jobId);
 
-        if (!job) {
-            await interaction.editReply(`Aucune tâche avec l'ID ${jobId} n'a été trouvée.`);
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        if (!uuidRegex.test(jobId)) {
+            await interaction.editReply({
+                content: `❌ L'ID \`${jobId}\` n'est pas un identifiant de tâche valide.\nUtilisez \`/createtextchan list\` pour voir la liste des tâches disponibles.`
+            });
             return;
         }
 
-        const guildInstance = await this.validateGuildInstance(interaction);
-        if (!guildInstance || job.guildInstanceId !== guildInstance.id) {
-            await interaction.editReply("Cette tâche n'appartient pas à ce serveur.");
-            return;
-        }
-
-        if (!job.categoryId) {
-            await interaction.editReply("Cette tâche n'est pas une tâche de création de canal.");
-            return;
-        }
-
-        let categoryName = "Catégorie inconnue ou supprimée";
         try {
-            const category = await interaction.guild?.channels.fetch(job.categoryId);
-            if (category) {
-                categoryName = category.name;
+            const job = await CronJob.findByPk(jobId);
+
+            if (!job) {
+                await interaction.editReply(`⚠️ Aucune tâche avec l'ID \`${jobId}\` n'a été trouvée.`);
+                return;
             }
+
+            const guildInstance = await this.validateGuildInstance(interaction);
+            if (!guildInstance || job.guildInstanceId !== guildInstance.id) {
+                await interaction.editReply("⚠️ Cette tâche n'appartient pas à ce serveur.");
+                return;
+            }
+
+            if (!job.categoryId) {
+                await interaction.editReply("⚠️ Cette tâche n'est pas une tâche de création de canal.");
+                return;
+            }
+
+            let categoryName = "Catégorie inconnue ou supprimée";
+            let categoryExists = false;
+            try {
+                const category = await interaction.guild?.channels.fetch(job.categoryId);
+                if (category) {
+                    categoryName = category.name;
+                    categoryExists = true;
+                }
+            } catch (error) {
+                this.logger.debug(`Catégorie non trouvée (peut avoir été supprimée): ${job.categoryId}`);
+            }
+
+            const cronParts = job.schedule.split(' ');
+            let frequencyText = "Programme personnalisé";
+
+            try {
+                const dayNumber = cronParts[5];
+                const interval = cronParts[2].includes('/') ? cronParts[2].replace('*/', '') : '1';
+                const hour = cronParts[1] || '12';
+                const minute = cronParts[0] || '0';
+
+                const dayMap: { [key: string]: string } = {
+                    "0": "dimanche",
+                    "1": "lundi",
+                    "2": "mardi",
+                    "3": "mercredi",
+                    "4": "jeudi",
+                    "5": "vendredi",
+                    "6": "samedi",
+                    "*": "tous les jours"
+                };
+
+                const day = dayMap[dayNumber] || "jour inconnu";
+                frequencyText = `Tous les ${interval} jours (${day}) à ${hour}:${minute.padStart(2, '0')}`;
+            } catch (error) {
+                this.logger.debug(`Format cron non standard: ${job.schedule}`);
+            }
+
+            const embed = new EmbedBuilder()
+                .setTitle(`Détails de la tâche: ${job.name}`)
+                .setColor(job.isActive ? (categoryExists ? "#00ff00" : "#ff9900") : "#ff0000")
+                .setDescription(job.description || "Aucune description")
+                .addFields(
+                    { name: "ID", value: job.id, inline: true },
+                    { name: "État", value: job.isActive ? "✅ Actif" : "❌ Inactif", inline: true },
+                    { name: "Catégorie", value: categoryExists
+                            ? `${categoryName} (<#${job.categoryId}>)`
+                            : `⚠️ ${categoryName} (ID: ${job.categoryId})`,
+                        inline: false },
+                    { name: "Fréquence", value: frequencyText, inline: true },
+                    { name: "Programme Cron", value: `\`${job.schedule}\``, inline: true },
+                    { name: "Créé le", value: format(job.createdAt, 'dd/MM/yyyy HH:mm', { locale: fr }), inline: true },
+                    { name: "Dernière modification", value: format(job.updatedAt, 'dd/MM/yyyy HH:mm', { locale: fr }), inline: true }
+                )
+                .setFooter({ text: `Utilisez /createtextchan edit ${job.id} pour modifier cette tâche` });
+
+            await interaction.editReply({ embeds: [embed] });
         } catch (error) {
-            this.logger.error(`Erreur lors de la récupération de la catégorie:`, error);
+            this.logger.error(`Erreur lors de la récupération des détails de la tâche:`, error);
+            await interaction.editReply("❌ Une erreur est survenue lors de la récupération des détails de la tâche.");
         }
-
-        const cronParts = job.schedule.split(' ');
-        let frequencyText = "Programme personnalisé";
-
-        try {
-            const dayNumber = cronParts[5];
-            const interval = cronParts[2].replace('*/', '');
-
-            const dayMap: { [key: string]: string } = {
-                "0": "dimanche",
-                "1": "lundi",
-                "2": "mardi",
-                "3": "mercredi",
-                "4": "jeudi",
-                "5": "vendredi",
-                "6": "samedi",
-                "*": "tous les jours"
-            };
-
-            const day = dayMap[dayNumber] || "jour inconnu";
-            frequencyText = `Tous les ${interval} jours (${day})`;
-        } catch (error) {
-            this.logger.error(`Erreur lors de l'analyse du programme:`, error);
-        }
-
-        const embed = new EmbedBuilder()
-            .setTitle(`Détails de la tâche: ${job.name}`)
-            .setColor(job.isActive ? "#00ff00" : "#ff0000")
-            .setDescription(job.description || "Aucune description")
-            .addFields(
-                { name: "ID", value: job.id, inline: true },
-                { name: "État", value: job.isActive ? "✅ Actif" : "❌ Inactif", inline: true },
-                { name: "Catégorie", value: `${categoryName} (ID: ${job.categoryId})`, inline: true },
-                { name: "Fréquence", value: frequencyText, inline: true },
-                { name: "Programme Cron", value: `\`${job.schedule}\``, inline: true },
-                { name: "Créé le", value: format(job.createdAt, 'dd/MM/yyyy HH:mm', { locale: fr }), inline: true },
-                { name: "Dernière modification", value: format(job.updatedAt, 'dd/MM/yyyy HH:mm', { locale: fr }), inline: true }
-            );
-
-        await interaction.editReply({ embeds: [embed] });
     }
-
     async handleEdit(interaction: ChatInputCommandInteraction): Promise<void> {
         await interaction.deferReply();
 

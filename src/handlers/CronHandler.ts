@@ -150,4 +150,16 @@ export class CronHandler extends BaseHandler {
             throw error;
         }
     }
+
+    public async executeJobManually(jobId: string): Promise<void> {
+        try {
+            const job = await CronJobModel.findByPk(jobId);
+            if (job) {
+                await this.executeCronJob(job);
+                console.log(`Tâche ${job.name} (${job.id}) exécutée manuellement avec succès`);
+            }
+        } catch (error) {
+            console.error(`Erreur lors de l'exécution manuelle de la tâche:`, error);
+        }
+    }
 }

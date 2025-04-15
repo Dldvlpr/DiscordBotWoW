@@ -48,6 +48,9 @@ export class CreateTextChanCommand extends Command {
                 case 'delete':
                     await this.handleDelete(interaction);
                     break;
+                case 'test':
+                    await this.handleTest(interaction);
+                    break;
                 default:
                     await interaction.reply({
                         content: "Sous-commande inconnue.",
@@ -58,7 +61,6 @@ export class CreateTextChanCommand extends Command {
             await this.handleError(interaction, error as Error);
         }
     }
-
     async handleCreate(interaction: ChatInputCommandInteraction): Promise<void> {
         const day = interaction.options.getString("day", true);
         const interval = interaction.options.getInteger("interval", true);
@@ -310,6 +312,34 @@ export class CreateTextChanCommand extends Command {
         } catch (error) {
             this.logger.error("Erreur lors de la suppression de la tâche:", error);
             await interaction.editReply("Une erreur est survenue lors de la suppression de la tâche.");
+        }
+    }
+
+    async handleTest(interaction: ChatInputCommandInteraction): Promise<void> {
+        const categoryId = interaction.options.getString("categoryid", true);
+        const channelNameOption = interaction.options.getString("channelname", false);
+
+        const category = await this.validateCategory(interaction, categoryId);
+        if (!category) return;
+
+        if (!await this.validateBotPermissions(interaction, category)) return;
+
+        try {
+            await interaction.deferReply();
+
+            const today = new Date();
+            const channelName = channelNameOption || `test-${today.toLocaleDateString().replace(/\//g, '-')}`;
+
+            const newChannel = await interaction.guild?.channels.create({
+                name: channelName,
+                type: 0,
+                parent: categoryId
+            });
+
+            await interaction.editReply(`✅ Canal de test créé avec succès : <#${newChannel?.id}>`);
+        } catch (error) {
+            this.logger.error("Erreur lors de la création du canal test:", error);
+            await interaction.editReply("❌ Une erreur est survenue lors de la création du canal test.");
         }
     }
 
@@ -590,6 +620,21 @@ export class CreateTextChanCommand extends Command {
                         option.setName("confirmation")
                             .setDescription("Tapez 'confirmer' pour confirmer la suppression")
                             .setRequired(true)
+                    )
+            )
+
+            .addSubcommand(subcommand =>
+                subcommand.setName("test")
+                    .setDescription("Teste la création immédiate d'un canal dans une catégorie")
+                    .addStringOption(option =>
+                        option.setName("categoryid")
+                            .setDescription("ID de la catégorie où le canal sera créé")
+                            .setRequired(true)
+                    )
+                    .addStringOption(option =>
+                        option.setName("channelname")
+                            .setDescription("Nom du canal (par défaut: date actuelle)")
+                            .setRequired(false)
                     )
             );
 

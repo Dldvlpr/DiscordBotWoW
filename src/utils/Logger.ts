@@ -6,7 +6,7 @@ export enum LogLevel {
 }
 
 export class Logger {
-    private context: string;
+    private readonly context: string;
     private static logLevel: LogLevel = LogLevel.INFO;
 
     constructor(context: string) {

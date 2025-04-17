@@ -410,7 +410,7 @@ export class CreateTextChanCommand extends Command {
         return dayMap[cronDayValue] || "everyday";
     }
 
-    getSlashCommand() {
+    getSlashCommand(): ReturnType<typeof SlashCommandBuilder.prototype.setName> | undefined {
         const command = new SlashCommandBuilder()
             .setName("createtextchan")
             .setDescription("Gère les créations automatiques de canaux textuels")

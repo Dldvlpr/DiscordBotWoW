@@ -428,7 +428,7 @@ export class ApplicationFormCommand extends Command {
         }
     }
 
-    getSlashCommand(): ReturnType<typeof SlashCommandBuilder.prototype.setName> {
+    getSlashCommand(): ReturnType<typeof SlashCommandBuilder.prototype.setName> | undefined {
         return new SlashCommandBuilder()
             .setName("applicationform")
             .setDescription("Gérer les formulaires de candidature")

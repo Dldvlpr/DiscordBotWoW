@@ -21,7 +21,7 @@ export abstract class Command {
      * Get the SlashCommandBuilder instance for this command
      * This is used to register the command with Discord
      */
-    abstract getSlashCommand(): ReturnType<typeof SlashCommandBuilder.prototype.setName>;
+    abstract getSlashCommand(): ReturnType<typeof SlashCommandBuilder.prototype.setName> | undefined;
 
     /**
      * Check if the command can be executed in the current context

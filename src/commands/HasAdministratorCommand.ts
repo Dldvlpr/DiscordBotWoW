@@ -1,9 +1,11 @@
+import {Command} from "./Command";
 import {ChatInputCommandInteraction, Client, PermissionFlagsBits, SlashCommandBuilder} from "discord.js";
-import { Command } from "./Command";
+import {Error} from "sequelize";
 
-export class PingCommand extends Command {
+export class HasAdministratorCommand extends Command
+{
     constructor() {
-        super("ping");
+        super("HasAdministratorCommand");
     }
 
     async execute(interaction: ChatInputCommandInteraction, client: Client): Promise<void> {
@@ -16,22 +18,21 @@ export class PingCommand extends Command {
                 return;
             }
 
-            const sent = await interaction.deferReply({ fetchReply: true });
-            const pingLatency = sent.createdTimestamp - interaction.createdTimestamp;
+            if (!interaction.guildId) {
+                await interaction.reply({
+                    content: "Cette commande ne peut être utilisée que sur un serveur.",
+                    ephemeral: true
+                });
+                return;
+            }
 
-            const wsLatency = client.ws.ping;
-
-            await interaction.editReply(`🏓 Pong!\nLatence API: ${pingLatency}ms\nLatence WebSocket: ${wsLatency}ms`);
-
-            this.logger.debug(`Ping command executed by ${interaction.user.tag} with latency: API=${pingLatency}ms, WS=${wsLatency}ms`);
+            
         } catch (error) {
             await this.handleError(interaction, error as Error);
         }
     }
 
     getSlashCommand(): ReturnType<typeof SlashCommandBuilder.prototype.setName> | undefined {
-        return new SlashCommandBuilder()
-            .setName("ping")
-            .setDescription("Répond avec Pong et affiche la latence du bot");
+        return undefined;
     }
 }

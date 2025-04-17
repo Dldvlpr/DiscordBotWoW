@@ -26,7 +26,7 @@ export class HasAdministratorCommand extends Command
                 return;
             }
 
-            
+
         } catch (error) {
             await this.handleError(interaction, error as Error);
         }

@@ -8,6 +8,7 @@ import { EventHandler } from './handlers/EventHandler';
 import { Logger, LogLevel } from './utils/Logger';
 import db from './models';
 import { initializeRepositories } from './repositories/initialize';
+import { RaidResetService } from './services/RaidResetService';
 
 const env = (process.env.NODE_ENV as 'development' | 'test' | 'production') || 'development';
 
@@ -17,6 +18,7 @@ export class Bot {
     private readonly eventHandler: EventHandler;
     private readonly logger: Logger;
     private readonly dbName: string;
+    private readonly raidResetService: RaidResetService;
 
     constructor() {
         this.logger = new Logger('Bot');
@@ -44,6 +46,7 @@ export class Bot {
 
         this.commandHandler = new CommandHandler(this.client);
         this.eventHandler = new EventHandler(this.client, this.commandHandler);
+        this.raidResetService = new RaidResetService(this.client);
     }
 
     public async start(): Promise<void> {
@@ -71,6 +74,10 @@ export class Bot {
             this.logger.info("Connecting Discord bot...");
             await this.client.login(config[env].discord.token);
             this.logger.info("Bot connected successfully!");
+
+            this.logger.info("Starting Raid Reset timer service...");
+            this.raidResetService.start();
+            this.logger.info("Raid Reset timer service started successfully!");
         } catch (error) {
             this.logger.error("Error during startup:", error);
             throw error;

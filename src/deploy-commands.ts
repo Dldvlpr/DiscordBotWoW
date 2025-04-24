@@ -43,6 +43,7 @@ const rest = new REST({ version: "10" }).setToken(token);
                     uniqueCommands.set(slash.name, slash);
                 }
             } else {
+                // @ts-ignore
                 const slash = cmd.getSlashCommand().toJSON();
                 if (!uniqueCommands.has(slash.name)) {
                     uniqueCommands.set(slash.name, slash);

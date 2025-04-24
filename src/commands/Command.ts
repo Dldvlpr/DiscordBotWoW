@@ -1,4 +1,4 @@
-import { ChatInputCommandInteraction, Client, SlashCommandBuilder } from "discord.js";
+import { ChatInputCommandInteraction, Client, SlashCommandBuilder, SlashCommandSubcommandsOnlyBuilder } from "discord.js";
 import { Logger } from "../utils/Logger";
 
 export abstract class Command {
@@ -20,8 +20,10 @@ export abstract class Command {
     /**
      * Get the SlashCommandBuilder instance for this command
      * This is used to register the command with Discord
+     *
+     * @returns A SlashCommandBuilder, SlashCommandSubcommandsOnlyBuilder, or undefined
      */
-    abstract getSlashCommand(): ReturnType<typeof SlashCommandBuilder.prototype.setName> | undefined;
+    abstract getSlashCommand(): ReturnType<typeof SlashCommandBuilder.prototype.setName> | SlashCommandSubcommandsOnlyBuilder | undefined;
 
     /**
      * Check if the command can be executed in the current context

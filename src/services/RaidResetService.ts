@@ -36,7 +36,7 @@ export class RaidResetService {
 
             const timeLeft = this.formatTimeLeft(this.nextReset);
 
-            this.client.user?.setActivity(`Reset 3j: ${timeLeft}`, { type: 4 }); // Type 4 = Watching
+            this.client.user?.setActivity(`Reset ZG: ${timeLeft}`, { type: 4 });
             this.logger.debug(`Statut mis à jour: Reset 3j: ${timeLeft}`);
         } catch (error) {
             this.logger.error('Erreur lors de la mise à jour du statut:', error);

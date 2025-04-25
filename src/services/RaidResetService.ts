@@ -74,17 +74,7 @@ export class RaidResetService {
         try {
             this.updateAllTimers();
 
-            const statusIndex = this.statusIndex;
-            this.statusIndex = (this.statusIndex + 1) % 3;
-
-            let statusText = "";
-            if (statusIndex === 0) {
-                statusText = `3D: ${this.resetInfo3d.timeLeft}`;
-            } else if (statusIndex === 1) {
-                statusText = `5D: ${this.resetInfo5d.timeLeft}`;
-            } else {
-                statusText = `7D: ${this.resetInfo7d.timeLeft}`;
-            }
+            const statusText = `3D: ${this.resetInfo3d.timeLeft} | 5D: ${this.resetInfo5d.timeLeft} | 7D: ${this.resetInfo7d.timeLeft}`;
 
             this.client.user?.setActivity(statusText, { type: 4 });
 

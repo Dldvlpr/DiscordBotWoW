@@ -1,18 +1,9 @@
-import {
-    ChatInputCommandInteraction,
-    Client,
-    SlashCommandBuilder,
-    CategoryChannel,
-    PermissionFlagsBits,
-    PermissionsBitField,
-    EmbedBuilder,
-    SlashCommandSubcommandsOnlyBuilder
-} from "discord.js";
+import { ChatInputCommandInteraction, Client, SlashCommandBuilder, CategoryChannel, PermissionFlagsBits, PermissionsBitField, EmbedBuilder, SlashCommandSubcommandsOnlyBuilder } from "discord.js";
 import { Command } from "./Command";
 import { CronJob } from "../models/cronJob";
 import { GuildInstance } from "../models/guildInstance";
 import { Error, Op, WhereOptions } from "sequelize";
-import { format, parse, isValid } from 'date-fns';
+import { format, parse, isValid, addDays, addWeeks, getDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { CronJobInterface } from "../interfaces/cronJob.interface";
 
@@ -45,6 +36,9 @@ export class CreateTextChanCommand extends Command {
                 case 'create':
                     await this.handleCreate(interaction);
                     break;
+                case 'advanced':
+                    await this.handleAdvancedCreate(interaction);
+                    break;
                 case 'list':
                     await this.handleList(interaction);
                     break;
@@ -71,6 +65,175 @@ export class CreateTextChanCommand extends Command {
         }
     }
 
+    private async handleAdvancedCreate(interaction: ChatInputCommandInteraction): Promise<void> {
+        const categoryId = interaction.options.getString("categoryid", true);
+        const baseChannelName = interaction.options.getString("channelname", true);
+        const targetDay = interaction.options.getString("day", true);
+        const weeksAhead = interaction.options.getInteger("weeksahead", true);
+        const intervalWeeks = interaction.options.getInteger("intervalweeks", false) ?? 1;
+        const creationDay = interaction.options.getString("creationday", false) ?? "today";
+        const timeOption = interaction.options.getString("time", false);
+        const includeDateOption = interaction.options.getBoolean("includedate", false) ?? true;
+        const dateFormatOption = interaction.options.getString("dateformat", false) || "yyyy-MM-dd";
+
+        const guildInstance = await this.getOrCreateGuildInstance(interaction);
+        if (!guildInstance) return;
+
+        const category = await this.getCategory(interaction, categoryId);
+        if (!category) return;
+
+        if (!await this.checkBotPermissions(interaction, category)) return;
+
+        if (weeksAhead <= 0) {
+            await interaction.reply({
+                content: "Le nombre de semaines à l'avance doit être un nombre positif.",
+                ephemeral: true
+            });
+            return;
+        }
+
+        if (intervalWeeks <= 0) {
+            await interaction.reply({
+                content: "L'intervalle de semaines doit être un nombre positif.",
+                ephemeral: true
+            });
+            return;
+        }
+
+        let hour = 12;
+        let minute = 0;
+        if (timeOption) {
+            const timeRegex = /^([01]?[0-9]|2[0-3]):([0-5][0-9])$/;
+            if (!timeRegex.test(timeOption)) {
+                await interaction.reply({
+                    content: "❌ Format d'heure invalide. Utilisez le format HH:MM (ex: 14:30).",
+                    ephemeral: true
+                });
+                return;
+            }
+
+            const [hourStr, minuteStr] = timeOption.split(':');
+            hour = parseInt(hourStr);
+            minute = parseInt(minuteStr);
+        }
+
+        const creationDayNum = this.getDayNumber(creationDay);
+
+        const cronSchedule = `${minute} ${hour} * * ${creationDayNum}`;
+
+        const formatOptions = {
+            includeDate: includeDateOption,
+            dateFormat: dateFormatOption,
+            baseChannelName: baseChannelName,
+            hour: hour,
+            minute: minute,
+            advancedScheduling: true,
+            targetDay: targetDay,
+            weeksAhead: weeksAhead,
+            intervalWeeks: intervalWeeks
+        };
+
+        if (!await this.isJobUnique(interaction, guildInstance.id, baseChannelName, cronSchedule, categoryId)) return;
+
+        try {
+            const newJob = await CronJob.create({
+                name: baseChannelName,
+                description: JSON.stringify(formatOptions),
+                schedule: cronSchedule,
+                isActive: true,
+                guildInstanceId: guildInstance.id,
+                categoryId: categoryId,
+            });
+
+            const nextCreationDate = this.getNextOccurrence(creationDayNum, hour, minute);
+            const targetDate = this.getTargetDateFromCreation(nextCreationDate, targetDay, weeksAhead);
+
+            const channelNameExample = this.formatChannelName(baseChannelName, includeDateOption, dateFormatOption, targetDate);
+
+            const formattedCreationDate = format(nextCreationDate, 'dd/MM/yyyy HH:mm', { locale: fr });
+            const formattedTargetDate = format(targetDate, 'dd/MM/yyyy', { locale: fr });
+            const dayName = this.getDayName(targetDay);
+            const creationDayName = this.getDayName(creationDay);
+
+            let message = `✅ Tâche de création de canaux configurée avec succès!\n\n`;
+            message += `🔄 Chaque ${creationDayName}, un canal sera créé pour le ${dayName} qui aura lieu ${weeksAhead} semaines plus tard.\n`;
+            message += `⏰ Prochaine exécution: ${formattedCreationDate}\n`;
+            message += `📅 Premier canal prévu: "${channelNameExample}" (pour le ${formattedTargetDate})\n`;
+            message += `🆔 ID de la tâche: \`${newJob.id}\`\n\n`;
+            message += `Cette tâche s'exécutera tous les ${intervalWeeks === 1 ? 'semaine' : intervalWeeks + ' semaines'}.`;
+
+            await interaction.reply({ content: message, ephemeral: false });
+        } catch (error) {
+            this.logger.error("Erreur lors de la création de la tâche avancée:", error);
+            await interaction.reply({
+                content: "❌ Une erreur est survenue lors de la planification du canal.",
+                ephemeral: true
+            });
+        }
+    }
+
+    private getDayNumber(day: string): number {
+        const dayMap: { [key: string]: number } = {
+            sunday: 0, dimanche: 0,
+            monday: 1, lundi: 1,
+            tuesday: 2, mardi: 2,
+            wednesday: 3, mercredi: 3,
+            thursday: 4, jeudi: 4,
+            friday: 5, vendredi: 5,
+            saturday: 6, samedi: 6,
+            today: new Date().getDay()
+        };
+
+        return dayMap[day.toLowerCase()] ?? new Date().getDay();
+    }
+
+    private getDayName(day: string): string {
+        const dayNameMap: { [key: string]: string } = {
+            sunday: "dimanche", dimanche: "dimanche",
+            monday: "lundi", lundi: "lundi",
+            tuesday: "mardi", mardi: "mardi",
+            wednesday: "mercredi", mercredi: "mercredi",
+            thursday: "jeudi", jeudi: "jeudi",
+            friday: "vendredi", vendredi: "vendredi",
+            saturday: "samedi", samedi: "samedi",
+            today: this.getDayNameFromNumber(new Date().getDay())
+        };
+
+        return dayNameMap[day.toLowerCase()] ?? "jour spécifié";
+    }
+
+    private getDayNameFromNumber(dayNum: number): string {
+        const days = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+        return days[dayNum];
+    }
+
+    private getNextOccurrence(dayOfWeek: number, hour: number, minute: number): Date {
+        const now = new Date();
+        const currentDayOfWeek = now.getDay();
+
+        let daysUntilTarget = dayOfWeek - currentDayOfWeek;
+        if (daysUntilTarget <= 0) daysUntilTarget += 7;
+
+        const nextDate = new Date(now);
+        nextDate.setDate(now.getDate() + daysUntilTarget);
+        nextDate.setHours(hour, minute, 0, 0);
+
+        return nextDate;
+    }
+
+    private getTargetDateFromCreation(creationDate: Date, targetDay: string, weeksAhead: number): Date {
+        const targetDayNum = this.getDayNumber(targetDay);
+        const creationDayOfWeek = creationDate.getDay();
+
+        let daysToAdd = targetDayNum - creationDayOfWeek;
+        if (daysToAdd < 0) daysToAdd += 7;
+
+        const targetDate = new Date(creationDate);
+        targetDate.setDate(creationDate.getDate() + daysToAdd);
+
+        return addWeeks(targetDate, weeksAhead);
+    }
+
     private async handleCreate(interaction: ChatInputCommandInteraction): Promise<void> {
         const day = interaction.options.getString("day", true);
         const interval = interaction.options.getInteger("interval", true);
@@ -81,18 +244,14 @@ export class CreateTextChanCommand extends Command {
         const startDateOption = interaction.options.getString("startdate", false);
         const timeOption = interaction.options.getString("time", false);
 
-        // Vérification du serveur
         const guildInstance = await this.getOrCreateGuildInstance(interaction);
         if (!guildInstance) return;
 
-        // Vérification de la catégorie
         const category = await this.getCategory(interaction, categoryId);
         if (!category) return;
 
-        // Vérification des permissions
         if (!await this.checkBotPermissions(interaction, category)) return;
 
-        // Formatage des options
         let startDate = new Date();
         let hasCustomStartDate = false;
         if (startDateOption) {
@@ -109,7 +268,6 @@ export class CreateTextChanCommand extends Command {
             hasCustomStartDate = true;
         }
 
-        // Analyse de l'heure (par défaut 12:00)
         let hour = 12;
         let minute = 0;
         if (timeOption) {
@@ -129,7 +287,6 @@ export class CreateTextChanCommand extends Command {
 
         const baseChannelName = channelNameOption || "discussion";
 
-        // Options de formatage stockées en JSON
         const formatOptions = {
             includeDate: includeDateOption,
             dateFormat: dateFormatOption,
@@ -139,13 +296,10 @@ export class CreateTextChanCommand extends Command {
             minute: minute
         };
 
-        // Création de l'expression cron
         const schedule = this.buildCronSchedule(day, interval, hour, minute);
 
-        // Vérification de duplicatas
         if (!await this.isJobUnique(interaction, guildInstance.id, baseChannelName, schedule, categoryId)) return;
 
-        // Création de la tâche cron
         await this.createCronJob(
             interaction,
             guildInstance.id,
@@ -189,7 +343,6 @@ export class CreateTextChanCommand extends Command {
         for (const job of jobs) {
             const status = job.isActive ? "✅ Actif" : "❌ Inactif";
 
-            // Extraction des informations de formatage
             let formatInfo = "";
             try {
                 if (job.description && job.description.startsWith("{")) {
@@ -225,7 +378,6 @@ export class CreateTextChanCommand extends Command {
 
         const jobId = interaction.options.getString("id", true);
 
-        // Validation de l'ID
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
         if (!uuidRegex.test(jobId)) {
             await interaction.editReply({
@@ -251,7 +403,6 @@ export class CreateTextChanCommand extends Command {
             return;
         }
 
-        // Vérification de la catégorie
         let categoryName = "Catégorie inconnue ou supprimée";
         let categoryExists = false;
         try {
@@ -264,7 +415,6 @@ export class CreateTextChanCommand extends Command {
             this.logger.debug(`Catégorie non trouvée: ${job.categoryId}`);
         }
 
-        // Extraction des informations de cron
         const cronParts = job.schedule.split(' ');
         const minute = cronParts[0];
         const hour = cronParts[1];
@@ -285,7 +435,6 @@ export class CreateTextChanCommand extends Command {
         const day = dayMap[dayNumber] || "jour inconnu";
         const frequencyText = `Tous les ${interval} jours (${day}) à ${hour}:${minute.padStart(2, '0')}`;
 
-        // Extraction des options de formatage
         let channelNameFormat = job.name;
         let includesDate = false;
         let dateFormat = "yyyy-MM-dd";
@@ -311,7 +460,6 @@ export class CreateTextChanCommand extends Command {
             this.logger.debug(`Could not parse description for job ${job.id}`);
         }
 
-        // Création de l'embed
         const embed = new EmbedBuilder()
             .setTitle(`Détails de la tâche: ${job.name}`)
             .setColor(job.isActive ? (categoryExists ? "#00ff00" : "#ff9900") : "#ff0000")
@@ -377,7 +525,6 @@ export class CreateTextChanCommand extends Command {
             return;
         }
 
-        // Modification de la catégorie
         let newCategoryId = job.categoryId;
         if (categoryId) {
             const category = await this.getCategory(interaction, categoryId);
@@ -386,7 +533,6 @@ export class CreateTextChanCommand extends Command {
             newCategoryId = categoryId;
         }
 
-        // Extraction des options de formatage existantes
         let formatOptions = {
             baseChannelName: job.name,
             includeDate: true,
@@ -404,7 +550,6 @@ export class CreateTextChanCommand extends Command {
             this.logger.debug(`Could not parse description for job ${job.id}`);
         }
 
-        // Mise à jour de l'heure si fournie
         let hour = formatOptions.hour;
         let minute = formatOptions.minute;
         if (timeOption) {
@@ -419,7 +564,6 @@ export class CreateTextChanCommand extends Command {
             minute = parseInt(minuteStr);
         }
 
-        // Mise à jour de la date de début si fournie
         if (startDateOption) {
             const parsedDate = parse(startDateOption, 'dd/MM/yyyy', new Date());
             if (!isValid(parsedDate)) {
@@ -430,7 +574,6 @@ export class CreateTextChanCommand extends Command {
             formatOptions.startDate = parsedDate.toISOString();
         }
 
-        // Mise à jour du programme cron si nécessaire
         let newSchedule = job.schedule;
         if (day || interval !== null || timeOption) {
             const currentParts = job.schedule.split(' ');
@@ -446,14 +589,12 @@ export class CreateTextChanCommand extends Command {
             newSchedule = this.buildCronSchedule(newDay, newInterval, hour, minute);
         }
 
-        // Mise à jour des options de formatage
         if (channelName !== null) formatOptions.baseChannelName = channelName;
         if (includeDateOption !== null) formatOptions.includeDate = includeDateOption;
         if (dateFormatOption !== null) formatOptions.dateFormat = dateFormatOption;
         formatOptions.hour = hour;
         formatOptions.minute = minute;
 
-        // Préparation des données à mettre à jour
         let updateData: Partial<CronJob> = {};
         updateData.name = formatOptions.baseChannelName;
         updateData.description = JSON.stringify(formatOptions);
@@ -462,14 +603,12 @@ export class CreateTextChanCommand extends Command {
         if (newCategoryId !== job.categoryId) updateData.categoryId = newCategoryId;
         if (isActive !== null) updateData.isActive = isActive;
 
-        // Vérification des duplicatas
         if (channelName && newSchedule !== job.schedule) {
             if (!await this.isJobUnique(interaction, guildInstance.id, formatOptions.baseChannelName, newSchedule, newCategoryId, job.id)) {
                 return;
             }
         }
 
-        // Enregistrement des modifications
         try {
             await job.update(updateData);
 
@@ -545,7 +684,6 @@ export class CreateTextChanCommand extends Command {
 
             const baseChannelName = channelNameOption || "test-discussion";
 
-            // Utiliser la date spécifiée pour le test
             let customDate: Date | undefined;
             if (startDateOption) {
                 const parsedDate = parse(startDateOption, 'dd/MM/yyyy', new Date());
@@ -574,7 +712,6 @@ export class CreateTextChanCommand extends Command {
         }
     }
 
-    // Méthodes utilitaires
     private formatChannelName(baseName: string, includeDate: boolean, dateFormat: string, customDate?: Date): string {
         if (!includeDate) {
             return baseName;
@@ -720,7 +857,6 @@ export class CreateTextChanCommand extends Command {
                             return false;
                         }
                     } else if (job.name === name && job.schedule === schedule) {
-                        // Fallback pour les tâches sans options de formatage
                         await interaction.reply({
                             content: "Une tâche planifiée avec ce nom et cette fréquence existe déjà !",
                             ephemeral: true
@@ -728,7 +864,6 @@ export class CreateTextChanCommand extends Command {
                         return false;
                     }
                 } catch (error) {
-                    // En cas d'erreur, vérifier juste le nom et le planning
                     if (job.name === name && job.schedule === schedule) {
                         await interaction.reply({
                             content: "Une tâche planifiée avec ce nom et cette fréquence existe déjà !",
@@ -862,6 +997,78 @@ export class CreateTextChanCommand extends Command {
                     )
             )
             .addSubcommand(subcommand =>
+                subcommand.setName("advanced")
+                    .setDescription("Crée automatiquement des canaux textuels planifiés X semaines à l'avance")
+                    .addStringOption(option =>
+                        option.setName("categoryid")
+                            .setDescription("ID de la catégorie où les canaux seront créés")
+                            .setRequired(true)
+                    )
+                    .addStringOption(option =>
+                        option.setName("channelname")
+                            .setDescription("Nom de base pour les canaux (ex: raid)")
+                            .setRequired(true)
+                    )
+                    .addStringOption(option =>
+                        option.setName("day")
+                            .setDescription("Jour de la semaine pour lequel créer les canaux")
+                            .setRequired(true)
+                            .addChoices(
+                                { name: "Lundi", value: "monday" },
+                                { name: "Mardi", value: "tuesday" },
+                                { name: "Mercredi", value: "wednesday" },
+                                { name: "Jeudi", value: "thursday" },
+                                { name: "Vendredi", value: "friday" },
+                                { name: "Samedi", value: "saturday" },
+                                { name: "Dimanche", value: "sunday" }
+                            )
+                    )
+                    .addIntegerOption(option =>
+                        option.setName("weeksahead")
+                            .setDescription("Nombre de semaines à l'avance (ex: 3 pour S+3)")
+                            .setRequired(true)
+                            .setMinValue(1)
+                            .setMaxValue(52)
+                    )
+                    .addStringOption(option =>
+                        option.setName("creationday")
+                            .setDescription("Jour de la semaine où créer les canaux (défaut: aujourd'hui)")
+                            .setRequired(false)
+                            .addChoices(
+                                { name: "Aujourd'hui", value: "today" },
+                                { name: "Lundi", value: "monday" },
+                                { name: "Mardi", value: "tuesday" },
+                                { name: "Mercredi", value: "wednesday" },
+                                { name: "Jeudi", value: "thursday" },
+                                { name: "Vendredi", value: "friday" },
+                                { name: "Samedi", value: "saturday" },
+                                { name: "Dimanche", value: "sunday" }
+                            )
+                    )
+                    .addIntegerOption(option =>
+                        option.setName("intervalweeks")
+                            .setDescription("Intervalle en semaines entre les créations (défaut: 1)")
+                            .setRequired(false)
+                            .setMinValue(1)
+                            .setMaxValue(52)
+                    )
+                    .addStringOption(option =>
+                        option.setName("time")
+                            .setDescription("Heure de création (format HH:MM)")
+                            .setRequired(false)
+                    )
+                    .addBooleanOption(option =>
+                        option.setName("includedate")
+                            .setDescription("Inclure la date dans le nom du canal?")
+                            .setRequired(false)
+                    )
+                    .addStringOption(option =>
+                        option.setName("dateformat")
+                            .setDescription("Format de date (ex: yyyy-MM-dd)")
+                            .setRequired(false)
+                    )
+            )
+            .addSubcommand(subcommand =>
                 subcommand.setName("list")
                     .setDescription("Liste toutes les tâches de création de canaux planifiées")
             )
@@ -983,4 +1190,5 @@ export class CreateTextChanCommand extends Command {
                             .setRequired(false)
                     )
             );
-    }}
+    }
+}

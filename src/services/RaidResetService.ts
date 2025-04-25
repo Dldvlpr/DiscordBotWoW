@@ -1,4 +1,4 @@
-import { Client, ActivityType } from 'discord.js';
+import { Client } from 'discord.js';
 import { Logger } from '../utils/Logger';
 
 interface ResetInfo {
@@ -10,30 +10,28 @@ export class RaidResetService {
     private readonly client: Client;
     private readonly logger: Logger;
     private statusTimer: NodeJS.Timeout | null = null;
-    private resetInfo: {
-        '3D': ResetInfo;
-        '5D': ResetInfo;
-        '7D': ResetInfo;
-    };
+    private resetInfo3d: ResetInfo;
+    private resetInfo5d: ResetInfo;
+    private resetInfo7d: ResetInfo;
     private statusIndex: number = 0;
 
     constructor(client: Client) {
         this.client = client;
         this.logger = new Logger('RaidResetService');
 
-        this.resetInfo = {
-            '3D': {
-                nextReset: this.calculateNextReset(3, new Date('2025-04-22T00:00:00Z')),
-                timeLeft: ""
-            },
-            '5D': {
-                nextReset: this.calculateNextReset(5, new Date('2025-04-28T03:00:00Z')),
-                timeLeft: ""
-            },
-            '7D': {
-                nextReset: this.calculateNextWednesdayReset(),
-                timeLeft: ""
-            }
+        this.resetInfo3d = {
+            nextReset: this.calculateNextReset(3, new Date('2025-04-22T00:00:00Z')),
+            timeLeft: ""
+        };
+
+        this.resetInfo5d = {
+            nextReset: this.calculateNextReset(5, new Date('2025-04-28T03:00:00Z')),
+            timeLeft: ""
+        };
+
+        this.resetInfo7d = {
+            nextReset: this.calculateNextWednesdayReset(),
+            timeLeft: ""
         };
 
         this.updateAllTimers();
@@ -56,35 +54,41 @@ export class RaidResetService {
     private updateAllTimers(): void {
         const now = new Date();
 
-        if (this.resetInfo['3d'].nextReset <= now) {
-            this.resetInfo['3d'].nextReset = this.calculateNextReset(3, new Date('2025-04-22T00:00:00Z'));
+        if (this.resetInfo3d.nextReset <= now) {
+            this.resetInfo3d.nextReset = this.calculateNextReset(3, new Date('2025-04-22T00:00:00Z'));
         }
-        this.resetInfo['3d'].timeLeft = this.formatTimeLeft(this.resetInfo['3d'].nextReset);
+        this.resetInfo3d.timeLeft = this.formatTimeLeft(this.resetInfo3d.nextReset);
 
-        if (this.resetInfo['5d'].nextReset <= now) {
-            this.resetInfo['5d'].nextReset = this.calculateNextReset(5, new Date('2025-04-28T03:00:00Z'));
+        if (this.resetInfo5d.nextReset <= now) {
+            this.resetInfo5d.nextReset = this.calculateNextReset(5, new Date('2025-04-28T03:00:00Z'));
         }
-        this.resetInfo['5d'].timeLeft = this.formatTimeLeft(this.resetInfo['5d'].nextReset);
+        this.resetInfo5d.timeLeft = this.formatTimeLeft(this.resetInfo5d.nextReset);
 
-        if (this.resetInfo['7d'].nextReset <= now) {
-            this.resetInfo['7d'].nextReset = this.calculateNextWednesdayReset();
+        if (this.resetInfo7d.nextReset <= now) {
+            this.resetInfo7d.nextReset = this.calculateNextWednesdayReset();
         }
-        this.resetInfo['7d'].timeLeft = this.formatTimeLeft(this.resetInfo['7d'].nextReset);
+        this.resetInfo7d.timeLeft = this.formatTimeLeft(this.resetInfo7d.nextReset);
     }
 
     private updateStatus(): void {
         try {
             this.updateAllTimers();
 
-            const statusKeys = ['3d', '5d', '7d'];
-            const currentKey = statusKeys[this.statusIndex];
-            this.statusIndex = (this.statusIndex + 1) % statusKeys.length;
+            const statusIndex = this.statusIndex;
+            this.statusIndex = (this.statusIndex + 1) % 3;
 
-            this.client.user?.setActivity(`${currentKey.toUpperCase()}: ${this.resetInfo[currentKey].timeLeft}`, {
-                type: ActivityType.Watching
-            });
+            let statusText = "";
+            if (statusIndex === 0) {
+                statusText = `3D: ${this.resetInfo3d.timeLeft}`;
+            } else if (statusIndex === 1) {
+                statusText = `5D: ${this.resetInfo5d.timeLeft}`;
+            } else {
+                statusText = `7D: ${this.resetInfo7d.timeLeft}`;
+            }
 
-            this.logger.debug(`Statut mis à jour: ${currentKey.toUpperCase()}: ${this.resetInfo[currentKey].timeLeft}`);
+            this.client.user?.setActivity(statusText, { type: 4 });
+
+            this.logger.debug(`Statut mis à jour: ${statusText}`);
         } catch (error) {
             this.logger.error('Erreur lors de la mise à jour du statut:', error);
         }
@@ -141,8 +145,16 @@ export class RaidResetService {
         }
     }
 
-    public getResetInfo(): { "3D": ResetInfo; "5D": ResetInfo; "7D": ResetInfo } {
+    public getResetInfo(): {
+        '3d': ResetInfo;
+        '5d': ResetInfo;
+        '7d': ResetInfo;
+    } {
         this.updateAllTimers();
-        return this.resetInfo;
+        return {
+            '3d': this.resetInfo3d,
+            '5d': this.resetInfo5d,
+            '7d': this.resetInfo7d
+        };
     }
 }

@@ -4,8 +4,8 @@ import {
     TextChannel,
     EmbedBuilder,
     GuildResolvable,
-    Snowflake,
-    Guild
+    Guild,
+    User
 } from 'discord.js';
 import { Player, QueryType, Track, GuildQueue } from 'discord-player';
 import { Logger } from '../utils/Logger';
@@ -26,7 +26,7 @@ interface QueueInfo {
 }
 
 export class MusicPlayer {
-    private initialized = false; // Gardons cette propriété privée
+    private initialized = false;
     private readonly player: Player;
     private readonly logger: Logger;
     private readonly guildCache: Map<string, GuildMusicCache> = new Map();
@@ -38,6 +38,9 @@ export class MusicPlayer {
 
     constructor(client: Client) {
         this.logger = new Logger('MusicPlayer');
+
+        // Initialisation simple du Player sans options spécifiques
+        // Les options YTDL doivent être configurées différemment dans la v7 de discord-player
         this.player = new Player(client);
 
         this.setupEventListeners();
@@ -86,13 +89,23 @@ export class MusicPlayer {
     private async _initialize(): Promise<void> {
         try {
             this.logger.info("Chargement des extracteurs audio...");
-            await this.player.extractors.loadMulti(DefaultExtractors);
+
+            // Chargement des extracteurs avec gestion des erreurs
+            try {
+                // On utilise simplement loadMulti avec DefaultExtractors
+                await this.player.extractors.loadMulti(DefaultExtractors);
+                this.logger.info("Extracteurs audio chargés avec succès");
+            } catch (extractorError) {
+                this.logger.warn(`Avertissement lors du chargement des extracteurs: ${(extractorError as Error).message}`);
+                this.logger.info("Tentative de poursuite malgré l'erreur d'extracteur");
+            }
+
             this.extractorsLoaded = true;
             this.initialized = true;
-            this.logger.info("Extracteurs audio chargés avec succès");
         } catch (error) {
-            this.logger.error('Erreur lors du chargement des extracteurs:', error);
-            throw error;
+            this.logger.error('Erreur lors de l\'initialisation:', error);
+            // Utiliser error as unknown et ensuite comme Error pour éviter les erreurs TS
+            throw new Error(`Échec de l'initialisation: ${(error as Error).message || 'Erreur inconnue'}`);
         }
     }
 
@@ -134,13 +147,17 @@ export class MusicPlayer {
         this.player.events.on('error', (queue, error) => {
             this.logger.error(`Erreur dans ${queue.guild.id}: ${error.message}`);
 
-            const cache = this.getGuildCache(queue.guild.id);
-            const currentTrack = queue.currentTrack;
+            const metadata = queue.metadata as { channel: TextChannel } | undefined;
+            if (metadata?.channel) {
+                metadata.channel.send(`⚠️ Erreur de lecture: ${error.message}`)
+                    .catch(err => this.logger.error('Erreur lors de l\'envoi du message:', err));
+            }
 
+            // Essayer une URL alternative si disponible
+            const currentTrack = queue.currentTrack;
             if (currentTrack && this.tryAlternativeUrl(queue, currentTrack.id)) {
-                const metadata = queue.metadata as { channel: TextChannel } | undefined;
                 if (metadata?.channel) {
-                    metadata.channel.send('⚠️ Problème détecté, tentative de récupération...')
+                    metadata.channel.send('🔄 Problème détecté, tentative de récupération avec une source alternative...')
                         .catch(err => this.logger.error('Erreur lors de l\'envoi du message:', err));
                 }
             }
@@ -162,7 +179,6 @@ export class MusicPlayer {
         });
     }
 
-    // Le reste du code reste inchangé...
     private getGuildCache(guildId: string): GuildMusicCache {
         if (!this.guildCache.has(guildId)) {
             this.guildCache.set(guildId, {
@@ -231,6 +247,8 @@ export class MusicPlayer {
         }
 
         try {
+            // Pour l'instant, juste stocker l'URL originale
+            // À l'avenir, on pourrait implémenter une recherche d'URLs alternatives
             const urls = [track.url];
 
             cache.alternativeUrls.set(track.id, urls);
@@ -312,7 +330,11 @@ export class MusicPlayer {
 
     public async play(voiceChannel: VoiceChannel, query: string, textChannel: TextChannel): Promise<Track> {
         if (!this.isInitialized()) {
-            throw new Error('Le lecteur de musique n\'est pas encore initialisé');
+            try {
+                await this.initialize();
+            } catch (error) {
+                throw new Error(`Le lecteur de musique n'est pas initialisé: ${(error as Error).message || 'Erreur inconnue'}`);
+            }
         }
 
         if (!voiceChannel || !textChannel) {
@@ -322,6 +344,14 @@ export class MusicPlayer {
         this.updateActivity(voiceChannel.guild.id);
 
         try {
+            // QueryType.AUTO est le plus sûr à utiliser
+            const searchEngine = QueryType.AUTO;
+
+            if (query.includes('youtube.com') || query.includes('youtu.be')) {
+                this.logger.debug(`Détecté lien YouTube: ${query}`);
+            }
+
+            // Spécifions correctement les options selon la version 7 de discord-player
             const result = await this.player.play(voiceChannel, query, {
                 nodeOptions: {
                     metadata: {
@@ -330,10 +360,15 @@ export class MusicPlayer {
                     leaveOnEnd: false,
                     leaveOnEmpty: true,
                     leaveOnEmptyCooldown: 300000,
-                    bufferingTimeout: 15000
+                    bufferingTimeout: 15000,
                 },
-                searchEngine: QueryType.AUTO
+                searchEngine: searchEngine,
+                requestedBy: textChannel.client.user as User
             });
+
+            if (!result || !result.track) {
+                throw new Error(`Aucun résultat trouvé pour "${query}"`);
+            }
 
             const cache = this.getGuildCache(voiceChannel.guild.id);
             cache.currentTrack = result.track;
@@ -348,7 +383,46 @@ export class MusicPlayer {
             return result.track;
         } catch (error) {
             this.logger.error(`Erreur de lecture: ${error}`);
-            throw error;
+
+            if (query.includes('youtube.com') || query.includes('youtu.be')) {
+                try {
+                    let videoId = '';
+                    if (query.includes('youtu.be/')) {
+                        videoId = query.split('youtu.be/')[1].split('?')[0];
+                    } else if (query.includes('watch?v=')) {
+                        videoId = query.split('watch?v=')[1].split('&')[0];
+                    }
+
+                    if (videoId) {
+                        this.logger.info(`Tentative alternative avec ID vidéo: ${videoId}`);
+                        const alternativeUrl = `https://www.youtube.com/watch?v=${videoId}`;
+                        const result = await this.player.play(voiceChannel, alternativeUrl, {
+                            nodeOptions: {
+                                metadata: {
+                                    channel: textChannel
+                                },
+                                leaveOnEnd: false,
+                                leaveOnEmpty: true,
+                                leaveOnEmptyCooldown: 300000,
+                                bufferingTimeout: 30000
+                            },
+                            searchEngine: QueryType.AUTO,
+                            requestedBy: textChannel.client.user as User
+                        });
+
+                        if (result && result.track) {
+                            const cache = this.getGuildCache(voiceChannel.guild.id);
+                            cache.currentTrack = result.track;
+                            return result.track;
+                        }
+                    }
+                } catch (alternativeError) {
+                    this.logger.error(`Échec de la méthode alternative: ${alternativeError}`);
+                }
+            }
+
+            // Gérer correctement l'erreur avec TypeScript
+            throw new Error(`Erreur de lecture: ${(error as Error).message || 'Erreur inconnue'}`);
         }
     }
 

@@ -67,6 +67,10 @@ export class Bot {
             initializeRepositories();
             this.logger.info("Repositories initialized successfully.");
 
+            this.logger.info("Initializing music handler...");
+            await this.musicHandler.initialize();
+            this.logger.info("Music handler initialized successfully!");
+
             this.logger.info("Initializing command handler...");
             await this.commandHandler.initialize();
             this.logger.info("Command handler initialized successfully.");
@@ -74,11 +78,6 @@ export class Bot {
             this.logger.info("Initializing event handler...");
             await this.eventHandler.initialize();
             this.logger.info("Event handler initialized successfully.");
-
-            this.logger.info("Initializing music handler...");
-            await this.musicHandler.initialize();
-            this.logger.info("Music handler initialized successfully!");
-
 
             this.logger.info("Connecting Discord bot...");
             await this.client.login(config[env].discord.token);

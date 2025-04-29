@@ -12,12 +12,10 @@ import { Command } from "./Command";
 import { MusicPlayer } from "../audio/MusicPlayer";
 
 export class MusicCommand extends Command {
-    private musicPlayer: MusicPlayer;
     private initialized: boolean = false;
 
-    constructor(client: Client) {
+    constructor(private readonly musicPlayer: MusicPlayer) {
         super("music");
-        this.musicPlayer = new MusicPlayer(client);
     }
 
     async initialize(): Promise<void> {
@@ -35,10 +33,10 @@ export class MusicCommand extends Command {
         try {
             if (!this.initialized) {
                 await interaction.reply({
-                    content: "Le système de musique est en cours d'initialisation. Veuillez réessayer dans quelques instants.",
+                    content: "⏳ Initialisation en cours…",
                     ephemeral: true
                 });
-                return;
+                await this.musicPlayer.initialize();
             }
 
             const member = interaction.member;

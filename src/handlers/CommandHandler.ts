@@ -30,7 +30,7 @@ export class CommandHandler {
             this.registerCommand(new CreateRaidHelperCommand());
             this.registerCommand(new ApplicationFormCommand());
             this.registerCommand(new HasAdministratorCommand());
-            this.registerCommand(new MusicCommand(this.client))
+            this.registerCommand(new MusicCommand());
 
             this.logger.info(`Registered ${this.commands.size} commands`);
         } catch (error) {

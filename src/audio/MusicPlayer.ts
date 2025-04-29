@@ -26,6 +26,7 @@ interface QueueInfo {
 }
 
 export class MusicPlayer {
+    private initialized = false;
     private readonly player: Player;
     private readonly logger: Logger;
     private readonly guildCache: Map<string, GuildMusicCache> = new Map();
@@ -47,9 +48,10 @@ export class MusicPlayer {
 
     public async initialize(): Promise<void> {
         try {
+            if (this.initialized) return;
             await this.player.extractors.loadMulti(DefaultExtractors);
-            this.extractorsLoaded = true;
-            this.logger.info('Extracteurs musicaux chargés avec succès');
+            this.initialized = true;
+            this.logger.info("Extracteurs chargés");
         } catch (error) {
             this.logger.error('Erreur lors du chargement des extracteurs:', error);
             throw error;

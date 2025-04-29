@@ -55,12 +55,11 @@ const rest = new REST({ version: "10" }).setToken(token);
             ]);
             console.log("✅ MusicPlayer initialisé avec succès");
         } catch (error) {
+            // @ts-ignore
             console.warn("⚠️ L'initialisation du MusicPlayer a échoué ou a pris trop de temps:", error.message);
             console.warn("⚠️ Continuation du déploiement des commandes sans MusicPlayer complètement initialisé");
-            // On continue quand même pour déployer les commandes
         }
 
-        // Puis initialiser le CommandHandler
         await commandHandler.initialize();
         console.log("✅ CommandHandler initialisé avec succès");
 
@@ -99,6 +98,7 @@ const rest = new REST({ version: "10" }).setToken(token);
         try {
             musicPlayer.destroy();
         } catch (e) {
+            // @ts-ignore
             console.warn("⚠️ Erreur lors de la destruction du MusicPlayer:", e.message);
         }
 

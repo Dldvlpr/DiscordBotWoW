@@ -22,6 +22,27 @@ export class MusicCommand extends Command {
 
     async execute(interaction: ChatInputCommandInteraction, client: Client): Promise<void> {
         try {
+            // Vérifier d'abord si le MusicPlayer est initialisé
+            if (!this.musicPlayer.isInitialized()) {
+                await interaction.reply({
+                    content: "⏳ Le système de musique est en cours d'initialisation. Veuillez réessayer dans quelques instants.",
+                    ephemeral: true
+                });
+
+                // Tentative d'initialisation si nécessaire
+                try {
+                    await this.musicPlayer.initialize();
+                    await interaction.followUp({
+                        content: "✅ Initialisation terminée. Vous pouvez maintenant utiliser les commandes de musique.",
+                        ephemeral: true
+                    });
+                } catch (initError) {
+                    this.logger.error("Erreur lors de l'initialisation du MusicPlayer:", initError);
+                }
+
+                return;
+            }
+
             const member = interaction.member;
             if (!member || !(member instanceof GuildMember) || !member.voice.channel) {
                 await interaction.reply({
@@ -102,6 +123,7 @@ export class MusicCommand extends Command {
         }
     }
 
+    // Reste du code inchangé...
     private async handleSkip(interaction: ChatInputCommandInteraction): Promise<void> {
         if (!interaction.guildId) {
             await interaction.reply({

@@ -26,11 +26,12 @@ interface QueueInfo {
 }
 
 export class MusicPlayer {
-    private initialized = false;
+    private initialized = false; // Gardons cette propriété privée
     private readonly player: Player;
     private readonly logger: Logger;
     private readonly guildCache: Map<string, GuildMusicCache> = new Map();
     private readonly inactivityCleanupInterval: NodeJS.Timeout;
+    private initializationPromise: Promise<void> | null = null;
 
     private readonly INACTIVITY_CLEANUP_MS = 15 * 60 * 1000;
     private extractorsLoaded: boolean = false;
@@ -46,12 +47,49 @@ export class MusicPlayer {
         }, 5 * 60 * 1000);
     }
 
+    /**
+     * Vérifie si le MusicPlayer est initialisé
+     * @returns true si le MusicPlayer est initialisé, false sinon
+     */
+    public isInitialized(): boolean {
+        return this.initialized && this.extractorsLoaded;
+    }
+
+    /**
+     * Initialise le MusicPlayer
+     * Cette méthode est idempotente et peut être appelée plusieurs fois sans danger
+     */
     public async initialize(): Promise<void> {
+        // Si déjà initialisé, ne rien faire
+        if (this.initialized) return;
+
+        // Si une initialisation est déjà en cours, attendre qu'elle se termine
+        if (this.initializationPromise) {
+            await this.initializationPromise;
+            return;
+        }
+
+        // Sinon, créer une nouvelle promesse d'initialisation
+        this.initializationPromise = this._initialize();
+
         try {
-            if (this.initialized) return;
+            await this.initializationPromise;
+        } finally {
+            // Quelle que soit l'issue, réinitialiser la promesse
+            this.initializationPromise = null;
+        }
+    }
+
+    /**
+     * Méthode privée qui effectue l'initialisation réelle
+     */
+    private async _initialize(): Promise<void> {
+        try {
+            this.logger.info("Chargement des extracteurs audio...");
             await this.player.extractors.loadMulti(DefaultExtractors);
+            this.extractorsLoaded = true;
             this.initialized = true;
-            this.logger.info("Extracteurs chargés");
+            this.logger.info("Extracteurs audio chargés avec succès");
         } catch (error) {
             this.logger.error('Erreur lors du chargement des extracteurs:', error);
             throw error;
@@ -124,6 +162,7 @@ export class MusicPlayer {
         });
     }
 
+    // Le reste du code reste inchangé...
     private getGuildCache(guildId: string): GuildMusicCache {
         if (!this.guildCache.has(guildId)) {
             this.guildCache.set(guildId, {
@@ -272,7 +311,7 @@ export class MusicPlayer {
     }
 
     public async play(voiceChannel: VoiceChannel, query: string, textChannel: TextChannel): Promise<Track> {
-        if (!this.extractorsLoaded) {
+        if (!this.isInitialized()) {
             throw new Error('Le lecteur de musique n\'est pas encore initialisé');
         }
 
@@ -314,7 +353,7 @@ export class MusicPlayer {
     }
 
     public pause(guildId: GuildResolvable): boolean {
-        if (!this.extractorsLoaded) return false;
+        if (!this.isInitialized()) return false;
 
         const stringGuildId = guildId instanceof Guild ? guildId.id : String(guildId);
         this.updateActivity(stringGuildId);
@@ -329,7 +368,7 @@ export class MusicPlayer {
     }
 
     public resume(guildId: GuildResolvable): boolean {
-        if (!this.extractorsLoaded) return false;
+        if (!this.isInitialized()) return false;
 
         const stringGuildId = guildId instanceof Guild ? guildId.id : String(guildId);
         this.updateActivity(stringGuildId);
@@ -344,7 +383,7 @@ export class MusicPlayer {
     }
 
     public skip(guildId: GuildResolvable): boolean {
-        if (!this.extractorsLoaded) return false;
+        if (!this.isInitialized()) return false;
 
         const stringGuildId = guildId instanceof Guild ? guildId.id : String(guildId);
         this.updateActivity(stringGuildId);
@@ -359,7 +398,7 @@ export class MusicPlayer {
     }
 
     public stop(guildId: GuildResolvable): boolean {
-        if (!this.extractorsLoaded) return false;
+        if (!this.isInitialized()) return false;
 
         const stringGuildId = guildId instanceof Guild ? guildId.id : String(guildId);
 
@@ -374,7 +413,7 @@ export class MusicPlayer {
     }
 
     public setVolume(guildId: GuildResolvable, volume: number): boolean {
-        if (!this.extractorsLoaded) return false;
+        if (!this.isInitialized()) return false;
 
         const stringGuildId = guildId instanceof Guild ? guildId.id : String(guildId);
         this.updateActivity(stringGuildId);
@@ -390,7 +429,7 @@ export class MusicPlayer {
     }
 
     public getQueue(guildId: GuildResolvable): QueueInfo | null {
-        if (!this.extractorsLoaded) return null;
+        if (!this.isInitialized()) return null;
 
         const stringGuildId = guildId instanceof Guild ? guildId.id : String(guildId);
         this.updateActivity(stringGuildId);

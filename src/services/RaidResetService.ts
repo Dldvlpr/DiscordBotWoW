@@ -20,7 +20,7 @@ export class RaidResetService {
         this.logger = new Logger('RaidResetService');
 
         this.resetInfo3d = {
-            nextReset: this.calculateNextReset(3, new Date('2025-04-22T00:00:00Z')),
+            nextReset: this.calculateNextReset(3, new Date('2025-04-22T03:00:00Z')),
             timeLeft: ""
         };
 
@@ -55,7 +55,7 @@ export class RaidResetService {
         const now = new Date();
 
         if (this.resetInfo3d.nextReset <= now) {
-            this.resetInfo3d.nextReset = this.calculateNextReset(3, new Date('2025-04-22T00:00:00Z'));
+            this.resetInfo3d.nextReset = this.calculateNextReset(3, new Date('2025-04-22T03:00:00Z'));
         }
         this.resetInfo3d.timeLeft = this.formatTimeLeft(this.resetInfo3d.nextReset);
 
@@ -71,17 +71,11 @@ export class RaidResetService {
     }
 
     private updateStatus(): void {
-        try {
             this.updateAllTimers();
 
             const statusText = `3D: ${this.resetInfo3d.timeLeft} | 5D: ${this.resetInfo5d.timeLeft} | 7D: ${this.resetInfo7d.timeLeft}`;
 
             this.client.user?.setActivity(statusText, { type: 4 });
-
-            this.logger.debug(`Statut mis à jour: ${statusText}`);
-        } catch (error) {
-            this.logger.error('Erreur lors de la mise à jour du statut:', error);
-        }
     }
 
     private calculateNextReset(days: number, baseDate: Date): Date {

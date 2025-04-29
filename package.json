@@ -20,7 +20,7 @@
     "seed:undo": "sequelize-cli db:seed:undo:all --config dist/config/sequelizeConfig.js",
     "clean": "rimraf dist && mkdir dist",
     "postbuild": "npm run build:config",
-    "gitpull": "git pull && npm run build && npm run postbuild && npm run deploy",
+    "gitpull": "git pull && npm run build && npm run postbuild && npm run deploy"
   },
   "keywords": [],
   "author": "",

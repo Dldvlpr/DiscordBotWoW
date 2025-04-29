@@ -8,6 +8,7 @@ import {
 } from 'discord.js';
 import { Player, QueryType, Track, GuildQueue } from 'discord-player';
 import { Logger } from '../utils/Logger';
+import { DefaultExtractors } from '@discord-player/extractor';
 
 interface GuildMusicCache {
     currentTrack: Track | null;
@@ -84,7 +85,8 @@ export class MusicPlayer {
             try {
                 // Discord Player a l'extracteur YouTube intégré par défaut
                 // Tentative d'utiliser loadDefault pour charger les extracteurs intégrés
-                await this.player.extractors.loadDefault();
+                await this.player.extractors.loadMulti(DefaultExtractors);
+                this.initialized = true;
                 this.logger.info("Extracteurs par défaut chargés avec succès");
             } catch (error) {
                 this.logger.warn(`Erreur lors du chargement des extracteurs par défaut: ${error}`);

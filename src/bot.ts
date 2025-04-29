@@ -9,6 +9,7 @@ import { Logger, LogLevel } from './utils/Logger';
 import db from './models';
 import { initializeRepositories } from './repositories/initialize';
 import { RaidResetService } from './services/RaidResetService';
+import { MusicHandler } from './handlers/MusicHandler';
 
 const env = (process.env.NODE_ENV as 'development' | 'test' | 'production') || 'development';
 
@@ -19,6 +20,7 @@ export class Bot {
     private readonly logger: Logger;
     private readonly dbName: string;
     private readonly raidResetService: RaidResetService;
+    private readonly musicHandler: MusicHandler;
 
     constructor() {
         this.logger = new Logger('Bot');
@@ -47,6 +49,7 @@ export class Bot {
         this.commandHandler = new CommandHandler(this.client);
         this.eventHandler = new EventHandler(this.client, this.commandHandler);
         this.raidResetService = new RaidResetService(this.client);
+        this.musicHandler = new MusicHandler(this.client);
     }
 
     public async start(): Promise<void> {
@@ -70,6 +73,11 @@ export class Bot {
             this.logger.info("Initializing event handler...");
             await this.eventHandler.initialize();
             this.logger.info("Event handler initialized successfully.");
+
+            this.logger.info("Initializing music handler...");
+            await this.musicHandler.initialize();
+            this.logger.info("Music handler initialized successfully!");
+
 
             this.logger.info("Connecting Discord bot...");
             await this.client.login(config[env].discord.token);

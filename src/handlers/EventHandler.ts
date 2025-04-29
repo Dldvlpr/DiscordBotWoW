@@ -3,17 +3,20 @@ import { BaseHandler } from './BaseHandler';
 import { CommandHandler } from './CommandHandler';
 import { MemberHandler } from './MemberHandler';
 import { CronHandler } from './CronHandler';
+import {MusicPlayer} from "../audio/MusicPlayer";
 
 export class EventHandler extends BaseHandler {
     private commandHandler: CommandHandler;
     private memberHandler: MemberHandler;
     private cronHandler: CronHandler;
+    private readonly musicPlayer: MusicPlayer;
 
     constructor(client: Client, commandHandler: CommandHandler) {
         super(client);
         this.commandHandler = commandHandler;
         this.memberHandler = new MemberHandler(client);
         this.cronHandler = new CronHandler(client);
+        this.musicPlayer = new MusicPlayer(client);
     }
 
     async initialize(): Promise<void> {

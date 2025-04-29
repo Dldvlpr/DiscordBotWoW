@@ -3,7 +3,7 @@ import { BaseHandler } from './BaseHandler';
 import { MusicPlayer } from '../audio/MusicPlayer';
 
 export class MusicHandler extends BaseHandler {
-    private musicPlayer: MusicPlayer;
+    private readonly musicPlayer: MusicPlayer;
 
     constructor(client: Client) {
         super(client);

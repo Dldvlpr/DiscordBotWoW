@@ -32,7 +32,9 @@ export class HasAdministratorCommand extends Command
         }
     }
 
-    getSlashCommand(): ReturnType<typeof SlashCommandBuilder.prototype.setName> | undefined {
-        return undefined;
+    getSlashCommand(): SlashCommandBuilder {
+        return new SlashCommandBuilder()
+            .setName('hasadmin')
+            .setDescription('Vérifie si un utilisateur a les permissions administrateur.');
     }
 }

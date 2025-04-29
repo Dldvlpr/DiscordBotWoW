@@ -6,7 +6,7 @@ import {
     TextChannel,
     GuildMember,
     ChannelType,
-    EmbedBuilder
+    EmbedBuilder, SlashCommandSubcommandsOnlyBuilder
 } from "discord.js";
 import { Command } from "./Command";
 import { MusicPlayer } from "../audio/MusicPlayer";
@@ -283,7 +283,7 @@ export class MusicCommand extends Command {
         }
     }
 
-    getSlashCommand() {
+    getSlashCommand(): ReturnType<typeof SlashCommandBuilder.prototype.setName> | SlashCommandSubcommandsOnlyBuilder {
         return new SlashCommandBuilder()
             .setName("music")
             .setDescription("Commandes de musique")

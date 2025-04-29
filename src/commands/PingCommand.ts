@@ -1,4 +1,10 @@
-import {ChatInputCommandInteraction, Client, PermissionFlagsBits, SlashCommandBuilder} from "discord.js";
+import {
+    ChatInputCommandInteraction,
+    Client,
+    PermissionFlagsBits,
+    SlashCommandBuilder,
+    SlashCommandSubcommandsOnlyBuilder
+} from "discord.js";
 import { Command } from "./Command";
 
 export class PingCommand extends Command {
@@ -29,7 +35,7 @@ export class PingCommand extends Command {
         }
     }
 
-    getSlashCommand(): ReturnType<typeof SlashCommandBuilder.prototype.setName> | undefined {
+    getSlashCommand(): ReturnType<typeof SlashCommandBuilder.prototype.setName> | SlashCommandSubcommandsOnlyBuilder {
         return new SlashCommandBuilder()
             .setName("ping")
             .setDescription("Répond avec Pong et affiche la latence du bot");

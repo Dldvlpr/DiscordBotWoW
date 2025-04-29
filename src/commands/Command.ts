@@ -23,7 +23,7 @@ export abstract class Command {
      *
      * @returns A SlashCommandBuilder, SlashCommandSubcommandsOnlyBuilder, or undefined
      */
-    abstract getSlashCommand(): ReturnType<typeof SlashCommandBuilder.prototype.setName> | SlashCommandSubcommandsOnlyBuilder | undefined;
+    abstract getSlashCommand(): SlashCommandSubcommandsOnlyBuilder;
 
     /**
      * Check if the command can be executed in the current context

@@ -4,7 +4,7 @@ import {
     Client,
     PermissionFlagsBits,
     Role,
-    SlashCommandBuilder,
+    SlashCommandBuilder, SlashCommandSubcommandsOnlyBuilder,
     TextChannel
 } from "discord.js";
 import {Command} from "./Command";
@@ -428,14 +428,14 @@ export class ApplicationFormCommand extends Command {
         }
     }
 
-    getSlashCommand(): ReturnType<typeof SlashCommandBuilder.prototype.setName> | undefined {
+    getSlashCommand(): ReturnType<typeof SlashCommandBuilder.prototype.setName> | SlashCommandSubcommandsOnlyBuilder {
         return new SlashCommandBuilder()
             .setName("applicationform")
             .setDescription("Gérer les formulaires de candidature")
             .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
     }
 
-    static getSlashCommand() {
+    static getSlashCommand(): ReturnType<typeof SlashCommandBuilder.prototype.setName> | SlashCommandSubcommandsOnlyBuilder {
         return new SlashCommandBuilder()
             .setName("applicationform")
             .setDescription("Gérer les formulaires de candidature")

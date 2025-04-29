@@ -6,6 +6,8 @@ import { WelcomeCommand } from '../commands/WelcomeCommand';
 import { CreateTextChanCommand } from '../commands/CreateTextChanCommand';
 import { CreateRaidHelperCommand } from '../commands/CreateRaidHelperCommand';
 import { ApplicationFormCommand } from '../commands/ApplicationFormCommand';
+import {HasAdministratorCommand} from "../commands/HasAdministratorCommand";
+import {MusicCommand} from "../commands/MusicCommand";
 
 export class CommandHandler {
     private commands: Collection<string, Command>;
@@ -27,6 +29,8 @@ export class CommandHandler {
             this.registerCommand(new CreateTextChanCommand());
             this.registerCommand(new CreateRaidHelperCommand());
             this.registerCommand(new ApplicationFormCommand());
+            this.registerCommand(new HasAdministratorCommand());
+            this.registerCommand(new MusicCommand(this.client))
 
             this.logger.info(`Registered ${this.commands.size} commands`);
         } catch (error) {

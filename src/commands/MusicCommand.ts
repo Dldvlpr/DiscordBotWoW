@@ -1,5 +1,13 @@
-// src/commands/MusicCommand.ts
-import { ChatInputCommandInteraction, Client, SlashCommandBuilder, VoiceChannel, TextChannel } from "discord.js";
+import {
+    ChatInputCommandInteraction,
+    Client,
+    SlashCommandBuilder,
+    VoiceChannel,
+    TextChannel,
+    GuildMember,
+    ChannelType,
+    EmbedBuilder, SlashCommandSubcommandsOnlyBuilder
+} from "discord.js";
 import { Command } from "./Command";
 import { MusicPlayer } from "../audio/MusicPlayer";
 
@@ -12,24 +20,19 @@ export class MusicCommand extends Command {
     }
 
     async execute(interaction: ChatInputCommandInteraction, client: Client): Promise<void> {
-        const member = interaction.member;
-        if (!("partial" in member && member.partial)) {
-            if ("voice" in member) {
-                const VoiceChannel = member.voice?.channel as VoiceChannel;
-            }
-        }
-
-        if (!VoiceChannel) {
-            await interaction.reply({ content: "Vous devez être dans un canal vocal pour utiliser cette commande.", ephemeral: true });
-            return;
-        }
-
-        const subcommand = interaction.options.getSubcommand();
-
         try {
+            const member = interaction.member as GuildMember;
+            if (!member.voice.channel) {
+                await interaction.reply({ content: "Vous devez être dans un canal vocal pour utiliser cette commande.", ephemeral: true });
+                return;
+            }
+
+            const voiceChannel = member.voice.channel as VoiceChannel;
+            const subcommand = interaction.options.getSubcommand();
+
             switch (subcommand) {
                 case 'play':
-                    await this.handlePlay(interaction, VoiceChannel);
+                    await this.handlePlay(interaction, voiceChannel);
                     break;
                 case 'skip':
                     await this.handleSkip(interaction);
@@ -54,29 +57,34 @@ export class MusicCommand extends Command {
             }
         } catch (error) {
             this.logger.error(`Erreur dans l'exécution de la commande music: ${error}`);
-            await interaction.reply({ content: `Une erreur est survenue: ${error.message}`, ephemeral: true });
+            await interaction.reply({ content: `Une erreur est survenue: ${error instanceof Error ? error.message : String(error)}`, ephemeral: true });
         }
     }
 
-    private async handlePlay(interaction: ChatInputCommandInteraction, VoiceChannel: VoiceChannel): Promise<void> {
+    private async handlePlay(interaction: ChatInputCommandInteraction, voiceChannel: VoiceChannel): Promise<void> {
         const query = interaction.options.getString("query", true);
 
         await interaction.deferReply();
 
         try {
             const track = await this.musicPlayer.play(
-                VoiceChannel,
+                voiceChannel,
                 query,
                 interaction.channel as TextChannel
             );
 
             await interaction.editReply(`✅ Ajouté à la file d'attente: **${track.title}**`);
         } catch (error) {
-            await interaction.editReply(`❌ Erreur: ${error.message}`);
+            await interaction.editReply(`❌ Erreur: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
 
     private async handleSkip(interaction: ChatInputCommandInteraction): Promise<void> {
+        if (!interaction.guildId) {
+            await interaction.reply({ content: "Cette commande ne peut être utilisée que sur un serveur.", ephemeral: true });
+            return;
+        }
+
         const success = this.musicPlayer.skip(interaction.guildId);
 
         if (success) {
@@ -87,6 +95,11 @@ export class MusicCommand extends Command {
     }
 
     private async handleStop(interaction: ChatInputCommandInteraction): Promise<void> {
+        if (!interaction.guildId) {
+            await interaction.reply({ content: "Cette commande ne peut être utilisée que sur un serveur.", ephemeral: true });
+            return;
+        }
+
         const success = this.musicPlayer.stop(interaction.guildId);
 
         if (success) {
@@ -97,6 +110,11 @@ export class MusicCommand extends Command {
     }
 
     private async handlePause(interaction: ChatInputCommandInteraction): Promise<void> {
+        if (!interaction.guildId) {
+            await interaction.reply({ content: "Cette commande ne peut être utilisée que sur un serveur.", ephemeral: true });
+            return;
+        }
+
         const success = this.musicPlayer.pause(interaction.guildId);
 
         if (success) {
@@ -107,6 +125,11 @@ export class MusicCommand extends Command {
     }
 
     private async handleResume(interaction: ChatInputCommandInteraction): Promise<void> {
+        if (!interaction.guildId) {
+            await interaction.reply({ content: "Cette commande ne peut être utilisée que sur un serveur.", ephemeral: true });
+            return;
+        }
+
         const success = this.musicPlayer.resume(interaction.guildId);
 
         if (success) {
@@ -117,6 +140,11 @@ export class MusicCommand extends Command {
     }
 
     private async handleQueue(interaction: ChatInputCommandInteraction): Promise<void> {
+        if (!interaction.guildId) {
+            await interaction.reply({ content: "Cette commande ne peut être utilisée que sur un serveur.", ephemeral: true });
+            return;
+        }
+
         const queueInfo = this.musicPlayer.getQueue(interaction.guildId);
 
         if (!queueInfo || !queueInfo.currentTrack) {
@@ -126,6 +154,10 @@ export class MusicCommand extends Command {
 
         const currentTrack = queueInfo.currentTrack;
         const tracks = queueInfo.tracks.slice(0, 10);
+
+        const embed = new EmbedBuilder()
+            .setTitle("🎵 File d'attente")
+            .setColor(0x3498db);
 
         let queueText = `**En cours:** [${currentTrack.title}](${currentTrack.url}) | ${currentTrack.duration}\n\n`;
 
@@ -144,16 +176,16 @@ export class MusicCommand extends Command {
             queueText += "*Aucune piste en attente*";
         }
 
-        await interaction.reply({
-            embeds: [{
-                title: "🎵 File d'attente",
-                description: queueText,
-                color: 0x3498db
-            }]
-        });
+        embed.setDescription(queueText);
+        await interaction.reply({ embeds: [embed] });
     }
 
     private async handleVolume(interaction: ChatInputCommandInteraction): Promise<void> {
+        if (!interaction.guildId) {
+            await interaction.reply({ content: "Cette commande ne peut être utilisée que sur un serveur.", ephemeral: true });
+            return;
+        }
+
         const volume = interaction.options.getInteger("level", true);
 
         if (volume < 0 || volume > 100) {
@@ -170,7 +202,7 @@ export class MusicCommand extends Command {
         }
     }
 
-    static getSlashCommand() {
+    getSlashCommand(): ReturnType<typeof SlashCommandBuilder.prototype.setName> | SlashCommandSubcommandsOnlyBuilder {
         return new SlashCommandBuilder()
             .setName("music")
             .setDescription("Commandes de musique")
@@ -215,9 +247,5 @@ export class MusicCommand extends Command {
                             .setMaxValue(100)
                     )
             );
-    }
-
-    getSlashCommand(): ReturnType<typeof SlashCommandBuilder.prototype.setName> {
-        return MusicCommand.getSlashCommand();
     }
 }

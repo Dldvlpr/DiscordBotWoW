@@ -1,17 +1,26 @@
-// src/audio/MusicPlayer.ts
-
-import {Client, VoiceChannel, TextChannel, EmbedBuilder, CacheTypeReducer, CacheType, Snowflake} from 'discord.js';
+import {
+    Client,
+    VoiceChannel,
+    TextChannel,
+    EmbedBuilder,
+    GuildResolvable,
+    Snowflake
+} from 'discord.js';
 import { Player, QueryType, Track, GuildQueue } from 'discord-player';
 import { Logger } from '../utils/Logger';
 
-/**
- */
 interface GuildMusicCache {
     currentTrack: Track | null;
     nextTrack: Track | null;
     alternativeUrls: Map<string, string[]>;
     currentUrlIndex: Map<string, number>;
     lastActivity: number;
+}
+
+interface QueueInfo {
+    currentTrack: Track | null;
+    tracks: Track[];
+    totalDuration: string;
 }
 
 export class MusicPlayer {
@@ -44,16 +53,13 @@ export class MusicPlayer {
             cache.currentUrlIndex.set(track.id, 0);
         });
 
-        // Fin d'une piste
         this.player.events.on('trackEnd', (queue, track) => {
             this.updateActivity(queue.guild.id);
             const cache = this.getGuildCache(queue.guild.id);
 
-            // Nettoyer les URLs de la piste terminée
             cache.alternativeUrls.delete(track.id);
             cache.currentUrlIndex.delete(track.id);
 
-            // La piste suivante devient la piste actuelle
             if (cache.nextTrack && cache.nextTrack.id !== track.id) {
                 cache.currentTrack = cache.nextTrack;
                 cache.nextTrack = null;
@@ -61,32 +67,30 @@ export class MusicPlayer {
                 cache.currentTrack = null;
             }
 
-            // Précharger la prochaine piste
             this.preloadNextTrack(queue);
         });
 
-        // File d'attente vide
         this.player.events.on('emptyQueue', (queue) => {
             this.logger.debug(`File d'attente vide pour ${queue.guild.id}`);
-            // Ne pas nettoyer immédiatement, laisser le nettoyage périodique s'en charger
         });
 
-        // Canal vocal vide
         this.player.events.on('emptyChannel', (queue) => {
             this.logger.debug(`Canal vocal vide pour ${queue.guild.id}`);
             this.cleanupGuildCache(queue.guild.id);
         });
 
-        // Gestionnaire d'erreurs
         this.player.events.on('error', (queue, error) => {
             this.logger.error(`Erreur dans ${queue.guild.id}: ${error.message}`);
 
-            // Essayer de basculer vers une URL alternative
             const cache = this.getGuildCache(queue.guild.id);
             const currentTrack = queue.currentTrack;
 
             if (currentTrack && this.tryAlternativeUrl(queue, currentTrack.id)) {
-                queue.metadata.channel.send('⚠️ Problème détecté, tentative de récupération...').catch(() => {});
+                const metadataChannel = queue.metadata?.channel as TextChannel;
+                if (metadataChannel) {
+                    metadataChannel.send('⚠️ Problème détecté, tentative de récupération...')
+                        .catch(err => this.logger.error('Erreur lors de l\'envoi du message:', err));
+                }
             }
         });
 
@@ -106,7 +110,7 @@ export class MusicPlayer {
             });
         }
 
-        return <GuildMusicCache>this.guildCache.get(guildId);
+        return this.guildCache.get(guildId) as GuildMusicCache;
     }
 
     private updateActivity(guildId: string): void {
@@ -180,7 +184,13 @@ export class MusicPlayer {
 
     private sendNowPlayingMessage(queue: GuildQueue, track: Track): void {
         try {
-            const textChannel = queue.metadata.channel as TextChannel;
+            const metadata = queue.metadata;
+            if (!metadata || !metadata.channel) {
+                this.logger.warn("Impossible d'envoyer le message 'Now Playing' - métadonnées manquantes");
+                return;
+            }
+
+            const textChannel = metadata.channel as TextChannel;
 
             const embed = new EmbedBuilder()
                 .setTitle('🎵 Lecture en cours')
@@ -229,9 +239,6 @@ export class MusicPlayer {
         }
     }
 
-    /**
-     * Libère toutes les ressources lors de l'arrêt du bot
-     */
     public destroy(): void {
         clearInterval(this.inactivityCleanupInterval);
         this.guildCache.clear();
@@ -277,8 +284,8 @@ export class MusicPlayer {
         }
     }
 
-    public pause(guildId: CacheTypeReducer<CacheType, Snowflake>): boolean {
-        this.updateActivity(guildId);
+    public pause(guildId: GuildResolvable): boolean {
+        this.updateActivity(String(guildId));
 
         const queue = this.player.nodes.get(guildId);
         if (!queue || !queue.node.isPlaying()) {
@@ -289,8 +296,8 @@ export class MusicPlayer {
         return true;
     }
 
-    public resume(guildId: CacheTypeReducer<CacheType, Snowflake>): boolean {
-        this.updateActivity(guildId);
+    public resume(guildId: GuildResolvable): boolean {
+        this.updateActivity(String(guildId));
 
         const queue = this.player.nodes.get(guildId);
         if (!queue || queue.node.isPlaying()) {
@@ -301,8 +308,8 @@ export class MusicPlayer {
         return true;
     }
 
-    public skip(guildId: CacheTypeReducer<CacheType, Snowflake>): boolean {
-        this.updateActivity(guildId);
+    public skip(guildId: GuildResolvable): boolean {
+        this.updateActivity(String(guildId));
 
         const queue = this.player.nodes.get(guildId);
         if (!queue || !queue.node.isPlaying()) {
@@ -313,19 +320,19 @@ export class MusicPlayer {
         return true;
     }
 
-    public stop(guildId: CacheTypeReducer<CacheType, Snowflake>): boolean {
+    public stop(guildId: GuildResolvable): boolean {
         const queue = this.player.nodes.get(guildId);
         if (!queue) {
             return false;
         }
 
         queue.delete();
-        this.cleanupGuildCache(guildId);
+        this.cleanupGuildCache(String(guildId));
         return true;
     }
 
-    public setVolume(guildId: CacheTypeReducer<CacheType, Snowflake>, volume: number): boolean {
-        this.updateActivity(guildId);
+    public setVolume(guildId: GuildResolvable, volume: number): boolean {
+        this.updateActivity(String(guildId));
 
         const queue = this.player.nodes.get(guildId);
         if (!queue) {
@@ -337,12 +344,8 @@ export class MusicPlayer {
         return true;
     }
 
-    public getQueue(guildId: CacheTypeReducer<CacheType, Snowflake>): {
-        currentTrack: Track<unknown> | null;
-        tracks: Track[];
-        totalDuration: string
-    } | null {
-        this.updateActivity(guildId);
+    public getQueue(guildId: GuildResolvable): QueueInfo | null {
+        this.updateActivity(String(guildId));
 
         const queue = this.player.nodes.get(guildId);
         if (!queue) {

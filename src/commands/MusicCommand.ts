@@ -6,39 +6,22 @@ import {
     TextChannel,
     GuildMember,
     ChannelType,
-    EmbedBuilder, SlashCommandSubcommandsOnlyBuilder
+    EmbedBuilder,
+    SlashCommandSubcommandsOnlyBuilder
 } from "discord.js";
 import { Command } from "./Command";
 import { MusicPlayer } from "../audio/MusicPlayer";
 
 export class MusicCommand extends Command {
-    private initialized: boolean = false;
+    private readonly musicPlayer: MusicPlayer;
 
-    constructor(private readonly musicPlayer: MusicPlayer) {
+    constructor(musicPlayer: MusicPlayer) {
         super("music");
-    }
-
-    async initialize(): Promise<void> {
-        try {
-            await this.musicPlayer.initialize();
-            this.initialized = true;
-            this.logger.info("Music command initialized successfully");
-        } catch (error) {
-            this.logger.error("Failed to initialize music command:", error);
-            throw error;
-        }
+        this.musicPlayer = musicPlayer;
     }
 
     async execute(interaction: ChatInputCommandInteraction, client: Client): Promise<void> {
         try {
-            if (!this.initialized) {
-                await interaction.reply({
-                    content: "⏳ Initialisation en cours…",
-                    ephemeral: true
-                });
-                await this.musicPlayer.initialize();
-            }
-
             const member = interaction.member;
             if (!member || !(member instanceof GuildMember) || !member.voice.channel) {
                 await interaction.reply({

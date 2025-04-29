@@ -6,18 +6,21 @@ import { WelcomeCommand } from '../commands/WelcomeCommand';
 import { CreateTextChanCommand } from '../commands/CreateTextChanCommand';
 import { CreateRaidHelperCommand } from '../commands/CreateRaidHelperCommand';
 import { ApplicationFormCommand } from '../commands/ApplicationFormCommand';
-import {HasAdministratorCommand} from "../commands/HasAdministratorCommand";
-import {MusicCommand} from "../commands/MusicCommand";
+import { HasAdministratorCommand } from "../commands/HasAdministratorCommand";
+import { MusicCommand } from "../commands/MusicCommand";
+import { MusicPlayer } from '../audio/MusicPlayer';
 
 export class CommandHandler {
     private commands: Collection<string, Command>;
     private readonly client: Client;
     private readonly logger: Logger;
+    private readonly musicPlayer: MusicPlayer;
 
-    constructor(client: Client) {
+    constructor(client: Client, musicPlayer: MusicPlayer) {
         this.client = client;
         this.commands = new Collection();
         this.logger = new Logger('CommandHandler');
+        this.musicPlayer = musicPlayer;
     }
 
     async initialize(): Promise<void> {
@@ -30,7 +33,7 @@ export class CommandHandler {
             this.registerCommand(new CreateRaidHelperCommand());
             this.registerCommand(new ApplicationFormCommand());
             this.registerCommand(new HasAdministratorCommand());
-            this.registerCommand(new MusicCommand());
+            this.registerCommand(new MusicCommand(this.musicPlayer));
 
             this.logger.info(`Registered ${this.commands.size} commands`);
         } catch (error) {

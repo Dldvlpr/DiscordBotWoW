@@ -3,6 +3,7 @@ import { REST, Routes } from "discord.js";
 import { CommandHandler } from "./handlers/CommandHandler";
 import { Client, GatewayIntentBits } from "discord.js";
 import configModule from "./config/config";
+import { MusicPlayer } from './audio/MusicPlayer';
 
 dotenv.config({ path: '.env.local' });
 
@@ -15,8 +16,8 @@ const dummyClient = new Client({
     intents: [GatewayIntentBits.Guilds]
 });
 
-const commandHandler = new CommandHandler(dummyClient);
-
+const musicPlayer = new MusicPlayer(dummyClient);
+const commandHandler = new CommandHandler(dummyClient, musicPlayer);
 const token = config?.[env]?.discord?.token || process.env.DISCORD_TOKEN;
 const clientId = config?.[env]?.discord?.clientId || process.env.DISCORD_CLIENT_ID;
 const guildId = config?.[env]?.discord?.guildId || process.env.DISCORD_GUILD_ID;
@@ -30,7 +31,11 @@ const rest = new REST({ version: "10" }).setToken(token);
 
 (async () => {
     try {
+        await musicPlayer.initialize();
+        console.log("✅ MusicPlayer initialized successfully");
+
         await commandHandler.initialize();
+        console.log("✅ CommandHandler initialized successfully");
 
         console.log("🔍 Récupération des commandes...");
 

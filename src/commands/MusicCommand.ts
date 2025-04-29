@@ -6,7 +6,7 @@ import {
     TextChannel,
     GuildMember,
     ChannelType,
-    EmbedBuilder, SlashCommandSubcommandsOnlyBuilder
+    EmbedBuilder
 } from "discord.js";
 import { Command } from "./Command";
 import { MusicPlayer } from "../audio/MusicPlayer";
@@ -21,13 +21,24 @@ export class MusicCommand extends Command {
 
     async execute(interaction: ChatInputCommandInteraction, client: Client): Promise<void> {
         try {
-            const member = interaction.member as GuildMember;
-            if (!member.voice.channel) {
-                await interaction.reply({ content: "Vous devez être dans un canal vocal pour utiliser cette commande.", ephemeral: true });
+            const member = interaction.member;
+            if (!member || !(member instanceof GuildMember) || !member.voice.channel) {
+                await interaction.reply({
+                    content: "Vous devez être dans un canal vocal pour utiliser cette commande.",
+                    ephemeral: true
+                });
                 return;
             }
 
-            const voiceChannel = member.voice.channel as VoiceChannel;
+            const voiceChannel = member.voice.channel;
+            if (voiceChannel.type !== ChannelType.GuildVoice) {
+                await interaction.reply({
+                    content: "Le canal doit être un canal vocal.",
+                    ephemeral: true
+                });
+                return;
+            }
+
             const subcommand = interaction.options.getSubcommand();
 
             switch (subcommand) {
@@ -53,11 +64,17 @@ export class MusicCommand extends Command {
                     await this.handleVolume(interaction);
                     break;
                 default:
-                    await interaction.reply({ content: "Sous-commande inconnue.", ephemeral: true });
+                    await interaction.reply({
+                        content: "Sous-commande inconnue.",
+                        ephemeral: true
+                    });
             }
         } catch (error) {
             this.logger.error(`Erreur dans l'exécution de la commande music: ${error}`);
-            await interaction.reply({ content: `Une erreur est survenue: ${error instanceof Error ? error.message : String(error)}`, ephemeral: true });
+            await interaction.reply({
+                content: `Une erreur est survenue: ${error instanceof Error ? error.message : String(error)}`,
+                ephemeral: true
+            });
         }
     }
 
@@ -67,6 +84,11 @@ export class MusicCommand extends Command {
         await interaction.deferReply();
 
         try {
+            if (!interaction.channel || interaction.channel.type !== ChannelType.GuildText) {
+                await interaction.editReply("Cette commande doit être utilisée dans un canal textuel d'un serveur.");
+                return;
+            }
+
             const track = await this.musicPlayer.play(
                 voiceChannel,
                 query,
@@ -81,7 +103,10 @@ export class MusicCommand extends Command {
 
     private async handleSkip(interaction: ChatInputCommandInteraction): Promise<void> {
         if (!interaction.guildId) {
-            await interaction.reply({ content: "Cette commande ne peut être utilisée que sur un serveur.", ephemeral: true });
+            await interaction.reply({
+                content: "Cette commande ne peut être utilisée que sur un serveur.",
+                ephemeral: true
+            });
             return;
         }
 
@@ -90,13 +115,19 @@ export class MusicCommand extends Command {
         if (success) {
             await interaction.reply("⏭️ Morceau suivant !");
         } else {
-            await interaction.reply({ content: "Aucune musique n'est en cours de lecture.", ephemeral: true });
+            await interaction.reply({
+                content: "Aucune musique n'est en cours de lecture.",
+                ephemeral: true
+            });
         }
     }
 
     private async handleStop(interaction: ChatInputCommandInteraction): Promise<void> {
         if (!interaction.guildId) {
-            await interaction.reply({ content: "Cette commande ne peut être utilisée que sur un serveur.", ephemeral: true });
+            await interaction.reply({
+                content: "Cette commande ne peut être utilisée que sur un serveur.",
+                ephemeral: true
+            });
             return;
         }
 
@@ -105,13 +136,19 @@ export class MusicCommand extends Command {
         if (success) {
             await interaction.reply("⏹️ Lecture arrêtée et file d'attente vidée.");
         } else {
-            await interaction.reply({ content: "Aucune musique n'est en cours de lecture.", ephemeral: true });
+            await interaction.reply({
+                content: "Aucune musique n'est en cours de lecture.",
+                ephemeral: true
+            });
         }
     }
 
     private async handlePause(interaction: ChatInputCommandInteraction): Promise<void> {
         if (!interaction.guildId) {
-            await interaction.reply({ content: "Cette commande ne peut être utilisée que sur un serveur.", ephemeral: true });
+            await interaction.reply({
+                content: "Cette commande ne peut être utilisée que sur un serveur.",
+                ephemeral: true
+            });
             return;
         }
 
@@ -120,13 +157,19 @@ export class MusicCommand extends Command {
         if (success) {
             await interaction.reply("⏸️ Lecture mise en pause.");
         } else {
-            await interaction.reply({ content: "Aucune musique n'est en cours de lecture.", ephemeral: true });
+            await interaction.reply({
+                content: "Aucune musique n'est en cours de lecture.",
+                ephemeral: true
+            });
         }
     }
 
     private async handleResume(interaction: ChatInputCommandInteraction): Promise<void> {
         if (!interaction.guildId) {
-            await interaction.reply({ content: "Cette commande ne peut être utilisée que sur un serveur.", ephemeral: true });
+            await interaction.reply({
+                content: "Cette commande ne peut être utilisée que sur un serveur.",
+                ephemeral: true
+            });
             return;
         }
 
@@ -135,20 +178,29 @@ export class MusicCommand extends Command {
         if (success) {
             await interaction.reply("▶️ Lecture reprise.");
         } else {
-            await interaction.reply({ content: "La musique n'est pas en pause.", ephemeral: true });
+            await interaction.reply({
+                content: "La musique n'est pas en pause.",
+                ephemeral: true
+            });
         }
     }
 
     private async handleQueue(interaction: ChatInputCommandInteraction): Promise<void> {
         if (!interaction.guildId) {
-            await interaction.reply({ content: "Cette commande ne peut être utilisée que sur un serveur.", ephemeral: true });
+            await interaction.reply({
+                content: "Cette commande ne peut être utilisée que sur un serveur.",
+                ephemeral: true
+            });
             return;
         }
 
         const queueInfo = this.musicPlayer.getQueue(interaction.guildId);
 
         if (!queueInfo || !queueInfo.currentTrack) {
-            await interaction.reply({ content: "Aucune musique n'est en cours de lecture.", ephemeral: true });
+            await interaction.reply({
+                content: "Aucune musique n'est en cours de lecture.",
+                ephemeral: true
+            });
             return;
         }
 
@@ -182,14 +234,20 @@ export class MusicCommand extends Command {
 
     private async handleVolume(interaction: ChatInputCommandInteraction): Promise<void> {
         if (!interaction.guildId) {
-            await interaction.reply({ content: "Cette commande ne peut être utilisée que sur un serveur.", ephemeral: true });
+            await interaction.reply({
+                content: "Cette commande ne peut être utilisée que sur un serveur.",
+                ephemeral: true
+            });
             return;
         }
 
         const volume = interaction.options.getInteger("level", true);
 
         if (volume < 0 || volume > 100) {
-            await interaction.reply({ content: "Le volume doit être entre 0 et 100.", ephemeral: true });
+            await interaction.reply({
+                content: "Le volume doit être entre 0 et 100.",
+                ephemeral: true
+            });
             return;
         }
 
@@ -198,11 +256,14 @@ export class MusicCommand extends Command {
         if (success) {
             await interaction.reply(`🔊 Volume réglé à ${volume}%`);
         } else {
-            await interaction.reply({ content: "Aucune musique n'est en cours de lecture.", ephemeral: true });
+            await interaction.reply({
+                content: "Aucune musique n'est en cours de lecture.",
+                ephemeral: true
+            });
         }
     }
 
-    getSlashCommand(): ReturnType<typeof SlashCommandBuilder.prototype.setName> | SlashCommandSubcommandsOnlyBuilder {
+    getSlashCommand() {
         return new SlashCommandBuilder()
             .setName("music")
             .setDescription("Commandes de musique")

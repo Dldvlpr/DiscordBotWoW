@@ -4,14 +4,12 @@ import {
     TextChannel,
     EmbedBuilder,
     GuildResolvable,
-    Snowflake
+    Snowflake,
+    Guild
 } from 'discord.js';
 import { Player, QueryType, Track, GuildQueue } from 'discord-player';
 import { Logger } from '../utils/Logger';
 
-/**
- * Interface pour stocker les informations de cache de musique par serveur
- */
 interface GuildMusicCache {
     currentTrack: Track | null;
     nextTrack: Track | null;
@@ -20,18 +18,12 @@ interface GuildMusicCache {
     lastActivity: number;
 }
 
-/**
- * Interface pour la sortie de getQueue
- */
 interface QueueInfo {
     currentTrack: Track | null;
     tracks: Track[];
     totalDuration: string;
 }
 
-/**
- * Classe principale pour gérer la lecture de musique
- */
 export class MusicPlayer {
     private readonly player: Player;
     private readonly logger: Logger;
@@ -62,16 +54,13 @@ export class MusicPlayer {
             cache.currentUrlIndex.set(track.id, 0);
         });
 
-        // Fin d'une piste
-        this.player.events.on('trackEnd', (queue, track) => {
+        this.player.events.on('audioTrackRemove', (queue, track) => {
             this.updateActivity(queue.guild.id);
             const cache = this.getGuildCache(queue.guild.id);
 
-            // Nettoyer les URLs de la piste terminée
             cache.alternativeUrls.delete(track.id);
             cache.currentUrlIndex.delete(track.id);
 
-            // La piste suivante devient la piste actuelle
             if (cache.nextTrack && cache.nextTrack.id !== track.id) {
                 cache.currentTrack = cache.nextTrack;
                 cache.nextTrack = null;
@@ -79,41 +68,46 @@ export class MusicPlayer {
                 cache.currentTrack = null;
             }
 
-            // Précharger la prochaine piste
             this.preloadNextTrack(queue);
         });
 
-        // File d'attente vide
         this.player.events.on('emptyQueue', (queue) => {
             this.logger.debug(`File d'attente vide pour ${queue.guild.id}`);
-            // Ne pas nettoyer immédiatement, laisser le nettoyage périodique s'en charger
         });
 
-        // Canal vocal vide
         this.player.events.on('emptyChannel', (queue) => {
             this.logger.debug(`Canal vocal vide pour ${queue.guild.id}`);
             this.cleanupGuildCache(queue.guild.id);
         });
 
-        // Gestionnaire d'erreurs
         this.player.events.on('error', (queue, error) => {
             this.logger.error(`Erreur dans ${queue.guild.id}: ${error.message}`);
 
-            // Essayer de basculer vers une URL alternative
             const cache = this.getGuildCache(queue.guild.id);
             const currentTrack = queue.currentTrack;
 
             if (currentTrack && this.tryAlternativeUrl(queue, currentTrack.id)) {
-                const metadataChannel = queue.metadata?.channel as TextChannel;
-                if (metadataChannel) {
-                    metadataChannel.send('⚠️ Problème détecté, tentative de récupération...')
+                const metadata = queue.metadata as { channel: TextChannel } | undefined;
+                if (metadata?.channel) {
+                    metadata.channel.send('⚠️ Problème détecté, tentative de récupération...')
                         .catch(err => this.logger.error('Erreur lors de l\'envoi du message:', err));
                 }
             }
         });
 
-        this.player.events.on('connectionDestroy', (queue) => {
+        this.player.events.on('connection', (queue) => {
+            this.logger.debug(`Connexion établie dans ${queue.guild.id}`);
+        });
+
+        this.player.events.on('disconnect', (queue) => {
+            this.logger.debug(`Déconnecté du canal vocal dans ${queue.guild.id}`);
             this.cleanupGuildCache(queue.guild.id);
+        });
+
+        this.player.events.on('debug', (queue, message) => {
+            if (message.includes('error') || message.includes('connexion')) {
+                this.logger.debug(`Debug dans ${queue.guild.id}: ${message}`);
+            }
         });
     }
 
@@ -202,13 +196,13 @@ export class MusicPlayer {
 
     private sendNowPlayingMessage(queue: GuildQueue, track: Track): void {
         try {
-            const metadata = queue.metadata;
+            const metadata = queue.metadata as { channel: TextChannel } | undefined;
             if (!metadata || !metadata.channel) {
                 this.logger.warn("Impossible d'envoyer le message 'Now Playing' - métadonnées manquantes");
                 return;
             }
 
-            const textChannel = metadata.channel as TextChannel;
+            const textChannel = metadata.channel;
 
             const embed = new EmbedBuilder()
                 .setTitle('🎵 Lecture en cours')
@@ -257,9 +251,6 @@ export class MusicPlayer {
         }
     }
 
-    /**
-     * Libère toutes les ressources lors de l'arrêt du bot
-     */
     public destroy(): void {
         clearInterval(this.inactivityCleanupInterval);
         this.guildCache.clear();
@@ -267,13 +258,6 @@ export class MusicPlayer {
         this.logger.info('Ressources du lecteur musical libérées');
     }
 
-    /**
-     * Joue une piste audio dans un canal vocal
-     * @param voiceChannel Le canal vocal où jouer la musique
-     * @param query La requête ou URL à jouer
-     * @param textChannel Le canal texte pour les notifications
-     * @returns La piste jouée
-     */
     public async play(voiceChannel: VoiceChannel, query: string, textChannel: TextChannel): Promise<Track> {
         if (!voiceChannel || !textChannel) {
             throw new Error('Canal vocal ou textuel non spécifié');
@@ -312,13 +296,9 @@ export class MusicPlayer {
         }
     }
 
-    /**
-     * Met en pause la lecture
-     * @param guildId L'ID du serveur
-     * @returns true si la pause a réussi, false sinon
-     */
     public pause(guildId: GuildResolvable): boolean {
-        this.updateActivity(String(guildId));
+        const stringGuildId = guildId instanceof Guild ? guildId.id : String(guildId);
+        this.updateActivity(stringGuildId);
 
         const queue = this.player.nodes.get(guildId);
         if (!queue || !queue.node.isPlaying()) {
@@ -329,13 +309,9 @@ export class MusicPlayer {
         return true;
     }
 
-    /**
-     * Reprend la lecture
-     * @param guildId L'ID du serveur
-     * @returns true si la reprise a réussi, false sinon
-     */
     public resume(guildId: GuildResolvable): boolean {
-        this.updateActivity(String(guildId));
+        const stringGuildId = guildId instanceof Guild ? guildId.id : String(guildId);
+        this.updateActivity(stringGuildId);
 
         const queue = this.player.nodes.get(guildId);
         if (!queue || queue.node.isPlaying()) {
@@ -346,13 +322,9 @@ export class MusicPlayer {
         return true;
     }
 
-    /**
-     * Passe à la piste suivante
-     * @param guildId L'ID du serveur
-     * @returns true si le skip a réussi, false sinon
-     */
     public skip(guildId: GuildResolvable): boolean {
-        this.updateActivity(String(guildId));
+        const stringGuildId = guildId instanceof Guild ? guildId.id : String(guildId);
+        this.updateActivity(stringGuildId);
 
         const queue = this.player.nodes.get(guildId);
         if (!queue || !queue.node.isPlaying()) {
@@ -363,30 +335,22 @@ export class MusicPlayer {
         return true;
     }
 
-    /**
-     * Arrête la lecture et vide la file
-     * @param guildId L'ID du serveur
-     * @returns true si l'arrêt a réussi, false sinon
-     */
     public stop(guildId: GuildResolvable): boolean {
+        const stringGuildId = guildId instanceof Guild ? guildId.id : String(guildId);
+
         const queue = this.player.nodes.get(guildId);
         if (!queue) {
             return false;
         }
 
         queue.delete();
-        this.cleanupGuildCache(String(guildId));
+        this.cleanupGuildCache(stringGuildId);
         return true;
     }
 
-    /**
-     * Définit le volume de lecture
-     * @param guildId L'ID du serveur
-     * @param volume Le niveau de volume (0-100)
-     * @returns true si le réglage a réussi, false sinon
-     */
     public setVolume(guildId: GuildResolvable, volume: number): boolean {
-        this.updateActivity(String(guildId));
+        const stringGuildId = guildId instanceof Guild ? guildId.id : String(guildId);
+        this.updateActivity(stringGuildId);
 
         const queue = this.player.nodes.get(guildId);
         if (!queue) {
@@ -398,13 +362,9 @@ export class MusicPlayer {
         return true;
     }
 
-    /**
-     * Récupère les informations de la file d'attente
-     * @param guildId L'ID du serveur
-     * @returns Les informations de la file ou null si aucune file active
-     */
     public getQueue(guildId: GuildResolvable): QueueInfo | null {
-        this.updateActivity(String(guildId));
+        const stringGuildId = guildId instanceof Guild ? guildId.id : String(guildId);
+        this.updateActivity(stringGuildId);
 
         const queue = this.player.nodes.get(guildId);
         if (!queue) {
@@ -440,9 +400,6 @@ export class MusicPlayer {
         };
     }
 
-    /**
-     * Récupère des statistiques sur l'utilisation du lecteur
-     */
     public getStats(): {
         guilds: number;
         memory: {

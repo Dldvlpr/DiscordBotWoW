@@ -4,18 +4,14 @@ import {
     TextChannel,
     EmbedBuilder,
     GuildResolvable,
-    Guild,
-    User
+    Guild
 } from 'discord.js';
 import { Player, QueryType, Track, GuildQueue } from 'discord-player';
 import { Logger } from '../utils/Logger';
-// Import direct de ytdl-core
-import ytdl from 'ytdl-core';
 
 interface GuildMusicCache {
     currentTrack: Track | null;
     nextTrack: Track | null;
-    alternativeUrls: Map<string, string[]>;
     currentUrlIndex: Map<string, number>;
     lastActivity: number;
 }
@@ -26,6 +22,9 @@ interface QueueInfo {
     totalDuration: string;
 }
 
+/**
+ * Service gérant la lecture audio via Discord Player
+ */
 export class MusicPlayer {
     private initialized = false;
     private readonly player: Player;
@@ -34,20 +33,17 @@ export class MusicPlayer {
     private readonly inactivityCleanupInterval: NodeJS.Timeout;
     private initializationPromise: Promise<void> | null = null;
 
-    private readonly INACTIVITY_CLEANUP_MS = 15 * 60 * 1000;
-    private extractorsLoaded: boolean = false;
+    private readonly INACTIVITY_CLEANUP_MS = 15 * 60 * 1000; // 15 minutes
+    private readonly DEFAULT_VOLUME = 80;
 
     constructor(client: Client) {
         this.logger = new Logger('MusicPlayer');
-
-        // Configuration de base - gardons-la simple
         this.player = new Player(client);
-
         this.setupEventListeners();
 
         this.inactivityCleanupInterval = setInterval(() => {
             this.cleanupInactiveGuilds();
-        }, 5 * 60 * 1000);
+        }, 5 * 60 * 1000); // Nettoyage toutes les 5 minutes
     }
 
     /**
@@ -58,7 +54,7 @@ export class MusicPlayer {
     }
 
     /**
-     * Initialise le MusicPlayer
+     * Initialise le MusicPlayer et ses extracteurs
      */
     public async initialize(): Promise<void> {
         if (this.initialized) return;
@@ -84,32 +80,35 @@ export class MusicPlayer {
         try {
             this.logger.info("Initialisation du lecteur audio...");
 
-            // Vérification de ytdl-core
-            try {
-                const version = ytdl.version;
-                this.logger.info(`Version de ytdl-core: ${version}`);
-
-                // Test rapide de l'API ytdl-core
-                const testUrl = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
-                const info = await ytdl.getBasicInfo(testUrl);
-                this.logger.info(`Test ytdl-core réussi: ${info.videoDetails.title}`);
-            } catch (ytdlError) {
-                this.logger.error(`Problème avec ytdl-core: ${ytdlError}`);
-            }
-
             // Enregistrement des extracteurs
             try {
-                // Utilisons le système d'extracteurs natif
-                const { YtdlExtractor } = await import('@discord-player/extractor/dist/YtdlExtractor');
-                await this.player.extractors.register(YtdlExtractor);
-                this.logger.info("Extracteur ytdl enregistré avec succès");
+                // Discord Player a l'extracteur YouTube intégré par défaut
+                // Tentative d'utiliser loadDefault pour charger les extracteurs intégrés
+                await this.player.extractors.loadDefault();
+                this.logger.info("Extracteurs par défaut chargés avec succès");
             } catch (error) {
-                this.logger.warn(`Erreur lors de l'enregistrement de l'extracteur ytdl: ${error}`);
-                this.logger.info("Tentative de continuer sans extracteur spécifique");
+                this.logger.warn(`Erreur lors du chargement des extracteurs par défaut: ${error}`);
+
+                // Si loadDefault échoue, essayons d'enregistrer des extracteurs supplémentaires
+                try {
+                    // Importation des extracteurs disponibles dans @discord-player/extractor
+                    const { SpotifyExtractor, SoundCloudExtractor } = await import('@discord-player/extractor');
+
+                    // Enregistrement des extracteurs disponibles
+                    await this.player.extractors.register(SpotifyExtractor, {});
+                    this.logger.info("SpotifyExtractor enregistré avec succès");
+
+                    await this.player.extractors.register(SoundCloudExtractor, {});
+                    this.logger.info("SoundCloudExtractor enregistré avec succès");
+
+                } catch (importError) {
+                    this.logger.error(`Échec de l'importation des extracteurs supplémentaires: ${importError}`);
+                    this.logger.info("Le lecteur fonctionnera avec une fonctionnalité réduite");
+                }
             }
 
             this.initialized = true;
-            this.extractorsLoaded = true;
+            this.logger.info("MusicPlayer initialisé avec succès");
         } catch (error) {
             this.logger.error('Erreur critique lors de l\'initialisation:', error);
             throw new Error(`Échec de l'initialisation: ${(error as Error).message || 'Erreur inconnue'}`);
@@ -117,6 +116,7 @@ export class MusicPlayer {
     }
 
     private setupEventListeners(): void {
+        // Écoute les événements de Discord Player
         this.player.events.on('playerStart', (queue, track) => {
             this.updateActivity(queue.guild.id);
             this.sendNowPlayingMessage(queue, track);
@@ -125,25 +125,47 @@ export class MusicPlayer {
             cache.currentUrlIndex.set(track.id, 0);
         });
 
-        this.player.events.on('audioTrackRemove', (queue, track) => {
-            this.updateActivity(queue.guild.id);
-            const cache = this.getGuildCache(queue.guild.id);
+        this.player.events.on('audioTrackAdd', (queue, track) => {
+            this.logger.debug(`Piste ajoutée dans ${queue.guild.id}: ${track.title}`);
+            const metadata = queue.metadata as { channel: TextChannel } | undefined;
 
-            cache.alternativeUrls.delete(track.id);
-            cache.currentUrlIndex.delete(track.id);
-
-            if (cache.nextTrack && cache.nextTrack.id !== track.id) {
-                cache.currentTrack = cache.nextTrack;
-                cache.nextTrack = null;
-            } else {
-                cache.currentTrack = null;
+            if (metadata?.channel && queue.tracks.data.length === 1 && !queue.node.isPlaying()) {
+                metadata.channel.send(`🎵 Ajouté à la file d'attente: **${track.title}**`).catch(err => {
+                    this.logger.error('Erreur lors de l\'envoi du message:', err);
+                });
             }
+        });
 
-            this.preloadNextTrack(queue);
+        this.player.events.on('playerSkip', (queue, track) => {
+            this.logger.debug(`Piste ignorée dans ${queue.guild.id}: ${track.title}`);
+            this.updateActivity(queue.guild.id);
+        });
+
+        this.player.events.on('audioTracksAdd', (queue, tracks) => {
+            this.logger.debug(`${tracks.length} pistes ajoutées dans ${queue.guild.id}`);
+            const metadata = queue.metadata as { channel: TextChannel } | undefined;
+
+            if (metadata?.channel) {
+                metadata.channel.send(`🎵 ${tracks.length} pistes ajoutées à la file d'attente`).catch(err => {
+                    this.logger.error('Erreur lors de l\'envoi du message:', err);
+                });
+            }
+        });
+
+        this.player.events.on('disconnect', (queue) => {
+            this.logger.debug(`Déconnecté du canal vocal dans ${queue.guild.id}`);
+            this.cleanupGuildCache(queue.guild.id);
         });
 
         this.player.events.on('emptyQueue', (queue) => {
             this.logger.debug(`File d'attente vide pour ${queue.guild.id}`);
+            const metadata = queue.metadata as { channel: TextChannel } | undefined;
+
+            if (metadata?.channel) {
+                metadata.channel.send('📭 La file d\'attente est maintenant vide.').catch(err => {
+                    this.logger.error('Erreur lors de l\'envoi du message:', err);
+                });
+            }
         });
 
         this.player.events.on('emptyChannel', (queue) => {
@@ -156,17 +178,9 @@ export class MusicPlayer {
 
             const metadata = queue.metadata as { channel: TextChannel } | undefined;
             if (metadata?.channel) {
-                metadata.channel.send(`⚠️ Erreur de lecture: ${error.message}`)
-                    .catch(err => this.logger.error('Erreur lors de l\'envoi du message:', err));
-            }
-
-            // Essayer une URL alternative si disponible
-            const currentTrack = queue.currentTrack;
-            if (currentTrack && this.tryAlternativeUrl(queue, currentTrack.id)) {
-                if (metadata?.channel) {
-                    metadata.channel.send('🔄 Problème détecté, tentative de récupération avec une source alternative...')
-                        .catch(err => this.logger.error('Erreur lors de l\'envoi du message:', err));
-                }
+                metadata.channel.send(`⚠️ Erreur de lecture: ${error.message}`).catch(err => {
+                    this.logger.error('Erreur lors de l\'envoi du message:', err);
+                });
             }
         });
     }
@@ -176,7 +190,6 @@ export class MusicPlayer {
             this.guildCache.set(guildId, {
                 currentTrack: null,
                 nextTrack: null,
-                alternativeUrls: new Map(),
                 currentUrlIndex: new Map(),
                 lastActivity: Date.now()
             });
@@ -190,33 +203,6 @@ export class MusicPlayer {
         cache.lastActivity = Date.now();
     }
 
-    private tryAlternativeUrl(queue: GuildQueue, trackId: string): boolean {
-        const cache = this.getGuildCache(queue.guild.id);
-        const urls = cache.alternativeUrls.get(trackId);
-
-        if (!urls || urls.length <= 1) {
-            return false;
-        }
-
-        let currentIndex = cache.currentUrlIndex.get(trackId) || 0;
-        currentIndex = (currentIndex + 1) % urls.length;
-        cache.currentUrlIndex.set(trackId, currentIndex);
-
-        this.logger.debug(`Tentative d'URL alternative ${currentIndex + 1}/${urls.length} pour ${trackId}`);
-
-        try {
-            const currentTrack = queue.currentTrack;
-            if (currentTrack && currentTrack.id === trackId) {
-                queue.node.skip();
-                return true;
-            }
-        } catch (e) {
-            this.logger.error(`Échec de la tentative d'URL alternative: ${e}`);
-        }
-
-        return false;
-    }
-
     private async preloadNextTrack(queue: GuildQueue): Promise<void> {
         if (!queue || queue.tracks.size === 0) return;
 
@@ -225,34 +211,6 @@ export class MusicPlayer {
 
         const cache = this.getGuildCache(queue.guild.id);
         cache.nextTrack = nextTrack;
-
-        this.fetchAlternativeUrls(queue.guild.id, nextTrack).catch(e => {
-            this.logger.error(`Échec du préchargement des URLs pour ${nextTrack.title}: ${e}`);
-        });
-    }
-
-    private async fetchAlternativeUrls(guildId: string, track: Track): Promise<string[] | undefined> {
-        const cache = this.getGuildCache(guildId);
-
-        if (cache.alternativeUrls.has(track.id)) {
-            return cache.alternativeUrls.get(track.id);
-        }
-
-        try {
-            // Pour l'instant, juste stocker l'URL originale
-            const urls = [track.url];
-
-            cache.alternativeUrls.set(track.id, urls);
-            cache.currentUrlIndex.set(track.id, 0);
-
-            return urls;
-        } catch (error) {
-            this.logger.error(`Erreur lors de la récupération d'URLs alternatives: ${error}`);
-            const fallbackUrls = [track.url];
-            cache.alternativeUrls.set(track.id, fallbackUrls);
-            cache.currentUrlIndex.set(track.id, 0);
-            return fallbackUrls;
-        }
     }
 
     private sendNowPlayingMessage(queue: GuildQueue, track: Track): void {
@@ -312,6 +270,9 @@ export class MusicPlayer {
         }
     }
 
+    /**
+     * Détruit l'instance du MusicPlayer et libère les ressources
+     */
     public destroy(): void {
         clearInterval(this.inactivityCleanupInterval);
         this.guildCache.clear();
@@ -320,63 +281,12 @@ export class MusicPlayer {
     }
 
     /**
-     * Méthode directe utilisant ytdl-core pour les URL YouTube
+     * Joue un morceau audio dans un canal vocal
+     * @param voiceChannel Le canal vocal où jouer la musique
+     * @param query L'URL ou le terme de recherche
+     * @param textChannel Le canal textuel pour les messages
+     * @returns La piste ajoutée
      */
-    private async playYouTubeDirectly(voiceChannel: VoiceChannel, videoUrl: string, textChannel: TextChannel): Promise<Track | null> {
-        try {
-            this.logger.info(`Tentative de lecture YouTube directe pour ${videoUrl}`);
-
-            // Extraire l'ID vidéo
-            let videoId = '';
-            if (videoUrl.includes('youtu.be/')) {
-                videoId = videoUrl.split('youtu.be/')[1].split(/[?&]/)[0];
-            } else if (videoUrl.includes('watch?v=')) {
-                videoId = videoUrl.split('watch?v=')[1].split(/[?&]/)[0];
-            } else {
-                videoId = videoUrl; // Assumer que c'est déjà un ID
-            }
-
-            if (!videoId) {
-                throw new Error("Impossible d'extraire l'ID vidéo");
-            }
-
-            // Obtenir des informations directement avec ytdl-core
-            const info = await ytdl.getBasicInfo(`https://www.youtube.com/watch?v=${videoId}`);
-
-            if (!info || !info.videoDetails) {
-                throw new Error("Impossible d'obtenir les informations de la vidéo");
-            }
-
-            // Utiliser la fonction de recherche du Player avec le titre exact
-            const searchResult = await this.player.search(info.videoDetails.title, {
-                requestedBy: textChannel.client.user as User
-            });
-
-            if (searchResult.tracks.length > 0) {
-                // Créer une file d'attente avec le premier résultat
-                const result = await this.player.play(voiceChannel, searchResult.tracks[0], {
-                    nodeOptions: {
-                        metadata: {
-                            channel: textChannel
-                        },
-                        leaveOnEnd: false,
-                        leaveOnEmpty: true,
-                        leaveOnEmptyCooldown: 300000,
-                        bufferingTimeout: 30000,
-                    },
-                    requestedBy: textChannel.client.user as User
-                });
-
-                return result.track;
-            }
-
-            return null;
-        } catch (error) {
-            this.logger.error(`Erreur lors de la lecture YouTube directe: ${error}`);
-            return null;
-        }
-    }
-
     public async play(voiceChannel: VoiceChannel, query: string, textChannel: TextChannel): Promise<Track> {
         if (!this.isInitialized()) {
             try {
@@ -392,38 +302,24 @@ export class MusicPlayer {
 
         this.updateActivity(voiceChannel.guild.id);
 
-        // 1. D'abord, détectons si c'est une URL YouTube
-        const isYouTubeUrl = query.includes('youtube.com') || query.includes('youtu.be');
-
-        if (isYouTubeUrl) {
-            try {
-                // 2. Essayons d'abord la méthode directe avec ytdl-core
-                const directResult = await this.playYouTubeDirectly(voiceChannel, query, textChannel);
-                if (directResult) {
-                    const cache = this.getGuildCache(voiceChannel.guild.id);
-                    cache.currentTrack = directResult;
-                    return directResult;
-                }
-            } catch (directError) {
-                this.logger.warn(`Échec de la lecture directe: ${directError}`);
-                // Continuez avec la méthode standard ci-dessous
-            }
-        }
-
         try {
-            // 3. Méthode standard avec recherche
+            // Utilisation de la méthode standard pour rechercher et jouer
             const result = await this.player.play(voiceChannel, query, {
                 nodeOptions: {
                     metadata: {
                         channel: textChannel
                     },
-                    leaveOnEnd: false,
+                    // Configuration des options de qualité audio et du comportement
                     leaveOnEmpty: true,
-                    leaveOnEmptyCooldown: 300000,
-                    bufferingTimeout: 30000,
+                    leaveOnEmptyCooldown: 300000, // 5 minutes
+                    leaveOnEnd: false,
+                    selfDeaf: true,
+                    volume: this.DEFAULT_VOLUME,
+                    bufferingTimeout: 30000, // 30 secondes
+                    connectionTimeout: 30000 // 30 secondes
                 },
                 searchEngine: QueryType.AUTO,
-                requestedBy: textChannel.client.user as User
+                requestedBy: textChannel.client.user
             });
 
             if (!result || !result.track) {
@@ -433,8 +329,6 @@ export class MusicPlayer {
             const cache = this.getGuildCache(voiceChannel.guild.id);
             cache.currentTrack = result.track;
 
-            await this.fetchAlternativeUrls(voiceChannel.guild.id, result.track);
-
             const queue = this.player.nodes.get(voiceChannel.guild.id);
             if (queue) {
                 await this.preloadNextTrack(queue);
@@ -443,93 +337,15 @@ export class MusicPlayer {
             return result.track;
         } catch (error) {
             this.logger.error(`Erreur de lecture: ${error}`);
-
-            // 4. Si c'est une URL YouTube, essayons une approche différente
-            if (isYouTubeUrl) {
-                try {
-                    // 4.1 Extraction de la vidéo par recherche par titre
-                    let videoId = '';
-                    if (query.includes('youtu.be/')) {
-                        videoId = query.split('youtu.be/')[1].split(/[?&]/)[0];
-                    } else if (query.includes('watch?v=')) {
-                        videoId = query.split('watch?v=')[1].split(/[?&]/)[0];
-                    }
-
-                    if (videoId) {
-                        this.logger.info(`Tentative de recherche générique pour l'ID: ${videoId}`);
-
-                        // Approche 1: recherche par titre
-                        try {
-                            const info = await ytdl.getBasicInfo(`https://www.youtube.com/watch?v=${videoId}`);
-                            if (info && info.videoDetails && info.videoDetails.title) {
-                                const searchResult = await this.player.search(info.videoDetails.title, {
-                                    requestedBy: textChannel.client.user as User
-                                });
-
-                                if (searchResult.tracks.length > 0) {
-                                    const result = await this.player.play(voiceChannel, searchResult.tracks[0], {
-                                        nodeOptions: {
-                                            metadata: {
-                                                channel: textChannel
-                                            },
-                                            leaveOnEnd: false,
-                                            leaveOnEmpty: true,
-                                            leaveOnEmptyCooldown: 300000,
-                                            bufferingTimeout: 30000,
-                                        },
-                                        requestedBy: textChannel.client.user as User
-                                    });
-
-                                    const cache = this.getGuildCache(voiceChannel.guild.id);
-                                    cache.currentTrack = result.track;
-                                    return result.track;
-                                }
-                            }
-                        } catch (titleError) {
-                            this.logger.error(`Échec de recherche par titre: ${titleError}`);
-                        }
-
-                        // Approche 2: recherche simple avec l'ID
-                        try {
-                            const searchTerm = `music ${videoId.replace(/-/g, ' ')}`;
-                            this.logger.info(`Tentative de recherche simple: ${searchTerm}`);
-
-                            const searchResult = await this.player.search(searchTerm, {
-                                requestedBy: textChannel.client.user as User
-                            });
-
-                            if (searchResult.tracks.length > 0) {
-                                const result = await this.player.play(voiceChannel, searchResult.tracks[0], {
-                                    nodeOptions: {
-                                        metadata: {
-                                            channel: textChannel
-                                        },
-                                        leaveOnEnd: false,
-                                        leaveOnEmpty: true,
-                                        leaveOnEmptyCooldown: 300000,
-                                        bufferingTimeout: 30000,
-                                    },
-                                    requestedBy: textChannel.client.user as User
-                                });
-
-                                const cache = this.getGuildCache(voiceChannel.guild.id);
-                                cache.currentTrack = result.track;
-                                return result.track;
-                            }
-                        } catch (simpleError) {
-                            this.logger.error(`Échec de recherche simple: ${simpleError}`);
-                        }
-                    }
-                } catch (finalError) {
-                    this.logger.error(`Échec de toutes les approches de récupération: ${finalError}`);
-                }
-            }
-
-            // Si nous arrivons ici, c'est que toutes les tentatives ont échoué
-            throw new Error(`Impossible de lire cette piste. Essayez avec un autre lien ou une recherche par mots-clés.`);
+            throw new Error(`Impossible de lire cette piste. ${(error as Error).message}`);
         }
     }
 
+    /**
+     * Met en pause la lecture
+     * @param guildId L'ID du serveur
+     * @returns true si la pause a réussi, false sinon
+     */
     public pause(guildId: GuildResolvable): boolean {
         if (!this.isInitialized()) return false;
 
@@ -537,7 +353,7 @@ export class MusicPlayer {
         this.updateActivity(stringGuildId);
 
         const queue = this.player.nodes.get(guildId);
-        if (!queue || !queue.node.isPlaying()) {
+        if (!queue || !queue.node.isPlaying() || queue.node.isPaused()) {
             return false;
         }
 
@@ -545,6 +361,11 @@ export class MusicPlayer {
         return true;
     }
 
+    /**
+     * Reprend la lecture
+     * @param guildId L'ID du serveur
+     * @returns true si la reprise a réussi, false sinon
+     */
     public resume(guildId: GuildResolvable): boolean {
         if (!this.isInitialized()) return false;
 
@@ -552,7 +373,7 @@ export class MusicPlayer {
         this.updateActivity(stringGuildId);
 
         const queue = this.player.nodes.get(guildId);
-        if (!queue || queue.node.isPlaying()) {
+        if (!queue || !queue.node.isPaused()) {
             return false;
         }
 
@@ -560,6 +381,11 @@ export class MusicPlayer {
         return true;
     }
 
+    /**
+     * Passe à la piste suivante
+     * @param guildId L'ID du serveur
+     * @returns true si le saut a réussi, false sinon
+     */
     public skip(guildId: GuildResolvable): boolean {
         if (!this.isInitialized()) return false;
 
@@ -567,7 +393,7 @@ export class MusicPlayer {
         this.updateActivity(stringGuildId);
 
         const queue = this.player.nodes.get(guildId);
-        if (!queue || !queue.node.isPlaying()) {
+        if (!queue || (!queue.node.isPlaying() && queue.tracks.size === 0)) {
             return false;
         }
 
@@ -575,6 +401,11 @@ export class MusicPlayer {
         return true;
     }
 
+    /**
+     * Arrête la lecture et quitte le canal vocal
+     * @param guildId L'ID du serveur
+     * @returns true si l'arrêt a réussi, false sinon
+     */
     public stop(guildId: GuildResolvable): boolean {
         if (!this.isInitialized()) return false;
 
@@ -590,6 +421,12 @@ export class MusicPlayer {
         return true;
     }
 
+    /**
+     * Modifie le volume de lecture
+     * @param guildId L'ID du serveur
+     * @param volume Le niveau de volume (0-100)
+     * @returns true si le changement a réussi, false sinon
+     */
     public setVolume(guildId: GuildResolvable, volume: number): boolean {
         if (!this.isInitialized()) return false;
 
@@ -606,6 +443,11 @@ export class MusicPlayer {
         return true;
     }
 
+    /**
+     * Récupère les informations de la file d'attente
+     * @param guildId L'ID du serveur
+     * @returns Informations sur la file d'attente ou null si aucune
+     */
     public getQueue(guildId: GuildResolvable): QueueInfo | null {
         if (!this.isInitialized()) return null;
 
@@ -646,6 +488,10 @@ export class MusicPlayer {
         };
     }
 
+    /**
+     * Récupère des statistiques sur le lecteur musical
+     * @returns Statistiques sur l'utilisation du lecteur
+     */
     public getStats(): {
         guilds: number;
         memory: {

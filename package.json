@@ -38,6 +38,7 @@
   "dependencies": {
     "@discord-player/extractor": "^7.1.0",
     "@discordjs/rest": "^2.4.3",
+    "@distube/ytdl-core": "^4.16.9",
     "@types/amqplib": "^0.10.7",
     "@types/date-fns": "^2.6.3",
     "amqplib": "^0.10.7",
@@ -51,8 +52,9 @@
     "pg": "^8.13.1",
     "pg-hstore": "^2.3.4",
     "pgtools": "^1.0.1",
-    "sequelize": "^6.37.5",
     "play-dl": "^1.9.7",
+    "sequelize": "^6.37.5",
+    "youtube-sr": "^4.3.11",
     "ytdl-core": "^4.11.5"
   }
 }

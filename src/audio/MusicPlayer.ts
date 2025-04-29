@@ -9,7 +9,8 @@ import {
 } from 'discord.js';
 import { Player, QueryType, Track, GuildQueue } from 'discord-player';
 import { Logger } from '../utils/Logger';
-import { DefaultExtractors } from '@discord-player/extractor';
+// Import direct de ytdl-core
+import ytdl from 'ytdl-core';
 
 interface GuildMusicCache {
     currentTrack: Track | null;
@@ -39,8 +40,7 @@ export class MusicPlayer {
     constructor(client: Client) {
         this.logger = new Logger('MusicPlayer');
 
-        // Initialisation simple du Player sans options spécifiques
-        // Les options YTDL doivent être configurées différemment dans la v7 de discord-player
+        // Configuration de base - gardons-la simple
         this.player = new Player(client);
 
         this.setupEventListeners();
@@ -52,59 +52,66 @@ export class MusicPlayer {
 
     /**
      * Vérifie si le MusicPlayer est initialisé
-     * @returns true si le MusicPlayer est initialisé, false sinon
      */
     public isInitialized(): boolean {
-        return this.initialized && this.extractorsLoaded;
+        return this.initialized;
     }
 
     /**
      * Initialise le MusicPlayer
-     * Cette méthode est idempotente et peut être appelée plusieurs fois sans danger
      */
     public async initialize(): Promise<void> {
-        // Si déjà initialisé, ne rien faire
         if (this.initialized) return;
 
-        // Si une initialisation est déjà en cours, attendre qu'elle se termine
         if (this.initializationPromise) {
             await this.initializationPromise;
             return;
         }
 
-        // Sinon, créer une nouvelle promesse d'initialisation
         this.initializationPromise = this._initialize();
 
         try {
             await this.initializationPromise;
         } finally {
-            // Quelle que soit l'issue, réinitialiser la promesse
             this.initializationPromise = null;
         }
     }
 
     /**
-     * Méthode privée qui effectue l'initialisation réelle
+     * Méthode privée d'initialisation
      */
     private async _initialize(): Promise<void> {
         try {
-            this.logger.info("Chargement des extracteurs audio...");
+            this.logger.info("Initialisation du lecteur audio...");
 
-            // Chargement des extracteurs avec gestion des erreurs
+            // Vérification de ytdl-core
             try {
-                // On utilise simplement loadMulti avec DefaultExtractors
-                await this.player.extractors.loadMulti(DefaultExtractors);
-                this.logger.info("Extracteurs audio chargés avec succès");
-            } catch (extractorError) {
-                this.logger.warn(`Avertissement lors du chargement des extracteurs: ${(extractorError as Error).message}`);
-                this.logger.info("Tentative de poursuite malgré l'erreur d'extracteur");
+                const version = ytdl.version;
+                this.logger.info(`Version de ytdl-core: ${version}`);
+
+                // Test rapide de l'API ytdl-core
+                const testUrl = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
+                const info = await ytdl.getBasicInfo(testUrl);
+                this.logger.info(`Test ytdl-core réussi: ${info.videoDetails.title}`);
+            } catch (ytdlError) {
+                this.logger.error(`Problème avec ytdl-core: ${ytdlError}`);
             }
 
-            this.extractorsLoaded = true;
+            // Enregistrement des extracteurs
+            try {
+                // Utilisons le système d'extracteurs natif
+                const { YtdlExtractor } = await import('@discord-player/extractor/dist/YtdlExtractor');
+                await this.player.extractors.register(YtdlExtractor);
+                this.logger.info("Extracteur ytdl enregistré avec succès");
+            } catch (error) {
+                this.logger.warn(`Erreur lors de l'enregistrement de l'extracteur ytdl: ${error}`);
+                this.logger.info("Tentative de continuer sans extracteur spécifique");
+            }
+
             this.initialized = true;
+            this.extractorsLoaded = true;
         } catch (error) {
-            this.logger.error('Erreur lors de l\'initialisation:', error);
-            // Utiliser error as unknown et ensuite comme Error pour éviter les erreurs TS
+            this.logger.error('Erreur critique lors de l\'initialisation:', error);
             throw new Error(`Échec de l'initialisation: ${(error as Error).message || 'Erreur inconnue'}`);
         }
     }
@@ -160,21 +167,6 @@ export class MusicPlayer {
                     metadata.channel.send('🔄 Problème détecté, tentative de récupération avec une source alternative...')
                         .catch(err => this.logger.error('Erreur lors de l\'envoi du message:', err));
                 }
-            }
-        });
-
-        this.player.events.on('connection', (queue) => {
-            this.logger.debug(`Connexion établie dans ${queue.guild.id}`);
-        });
-
-        this.player.events.on('disconnect', (queue) => {
-            this.logger.debug(`Déconnecté du canal vocal dans ${queue.guild.id}`);
-            this.cleanupGuildCache(queue.guild.id);
-        });
-
-        this.player.events.on('debug', (queue, message) => {
-            if (message.includes('error') || message.includes('connexion')) {
-                this.logger.debug(`Debug dans ${queue.guild.id}: ${message}`);
             }
         });
     }
@@ -248,7 +240,6 @@ export class MusicPlayer {
 
         try {
             // Pour l'instant, juste stocker l'URL originale
-            // À l'avenir, on pourrait implémenter une recherche d'URLs alternatives
             const urls = [track.url];
 
             cache.alternativeUrls.set(track.id, urls);
@@ -328,6 +319,64 @@ export class MusicPlayer {
         this.logger.info('Ressources du lecteur musical libérées');
     }
 
+    /**
+     * Méthode directe utilisant ytdl-core pour les URL YouTube
+     */
+    private async playYouTubeDirectly(voiceChannel: VoiceChannel, videoUrl: string, textChannel: TextChannel): Promise<Track | null> {
+        try {
+            this.logger.info(`Tentative de lecture YouTube directe pour ${videoUrl}`);
+
+            // Extraire l'ID vidéo
+            let videoId = '';
+            if (videoUrl.includes('youtu.be/')) {
+                videoId = videoUrl.split('youtu.be/')[1].split(/[?&]/)[0];
+            } else if (videoUrl.includes('watch?v=')) {
+                videoId = videoUrl.split('watch?v=')[1].split(/[?&]/)[0];
+            } else {
+                videoId = videoUrl; // Assumer que c'est déjà un ID
+            }
+
+            if (!videoId) {
+                throw new Error("Impossible d'extraire l'ID vidéo");
+            }
+
+            // Obtenir des informations directement avec ytdl-core
+            const info = await ytdl.getBasicInfo(`https://www.youtube.com/watch?v=${videoId}`);
+
+            if (!info || !info.videoDetails) {
+                throw new Error("Impossible d'obtenir les informations de la vidéo");
+            }
+
+            // Utiliser la fonction de recherche du Player avec le titre exact
+            const searchResult = await this.player.search(info.videoDetails.title, {
+                requestedBy: textChannel.client.user as User
+            });
+
+            if (searchResult.tracks.length > 0) {
+                // Créer une file d'attente avec le premier résultat
+                const result = await this.player.play(voiceChannel, searchResult.tracks[0], {
+                    nodeOptions: {
+                        metadata: {
+                            channel: textChannel
+                        },
+                        leaveOnEnd: false,
+                        leaveOnEmpty: true,
+                        leaveOnEmptyCooldown: 300000,
+                        bufferingTimeout: 30000,
+                    },
+                    requestedBy: textChannel.client.user as User
+                });
+
+                return result.track;
+            }
+
+            return null;
+        } catch (error) {
+            this.logger.error(`Erreur lors de la lecture YouTube directe: ${error}`);
+            return null;
+        }
+    }
+
     public async play(voiceChannel: VoiceChannel, query: string, textChannel: TextChannel): Promise<Track> {
         if (!this.isInitialized()) {
             try {
@@ -343,15 +392,26 @@ export class MusicPlayer {
 
         this.updateActivity(voiceChannel.guild.id);
 
-        try {
-            // QueryType.AUTO est le plus sûr à utiliser
-            const searchEngine = QueryType.AUTO;
+        // 1. D'abord, détectons si c'est une URL YouTube
+        const isYouTubeUrl = query.includes('youtube.com') || query.includes('youtu.be');
 
-            if (query.includes('youtube.com') || query.includes('youtu.be')) {
-                this.logger.debug(`Détecté lien YouTube: ${query}`);
+        if (isYouTubeUrl) {
+            try {
+                // 2. Essayons d'abord la méthode directe avec ytdl-core
+                const directResult = await this.playYouTubeDirectly(voiceChannel, query, textChannel);
+                if (directResult) {
+                    const cache = this.getGuildCache(voiceChannel.guild.id);
+                    cache.currentTrack = directResult;
+                    return directResult;
+                }
+            } catch (directError) {
+                this.logger.warn(`Échec de la lecture directe: ${directError}`);
+                // Continuez avec la méthode standard ci-dessous
             }
+        }
 
-            // Spécifions correctement les options selon la version 7 de discord-player
+        try {
+            // 3. Méthode standard avec recherche
             const result = await this.player.play(voiceChannel, query, {
                 nodeOptions: {
                     metadata: {
@@ -360,9 +420,9 @@ export class MusicPlayer {
                     leaveOnEnd: false,
                     leaveOnEmpty: true,
                     leaveOnEmptyCooldown: 300000,
-                    bufferingTimeout: 15000,
+                    bufferingTimeout: 30000,
                 },
-                searchEngine: searchEngine,
+                searchEngine: QueryType.AUTO,
                 requestedBy: textChannel.client.user as User
             });
 
@@ -384,45 +444,89 @@ export class MusicPlayer {
         } catch (error) {
             this.logger.error(`Erreur de lecture: ${error}`);
 
-            if (query.includes('youtube.com') || query.includes('youtu.be')) {
+            // 4. Si c'est une URL YouTube, essayons une approche différente
+            if (isYouTubeUrl) {
                 try {
+                    // 4.1 Extraction de la vidéo par recherche par titre
                     let videoId = '';
                     if (query.includes('youtu.be/')) {
-                        videoId = query.split('youtu.be/')[1].split('?')[0];
+                        videoId = query.split('youtu.be/')[1].split(/[?&]/)[0];
                     } else if (query.includes('watch?v=')) {
-                        videoId = query.split('watch?v=')[1].split('&')[0];
+                        videoId = query.split('watch?v=')[1].split(/[?&]/)[0];
                     }
 
                     if (videoId) {
-                        this.logger.info(`Tentative alternative avec ID vidéo: ${videoId}`);
-                        const alternativeUrl = `https://www.youtube.com/watch?v=${videoId}`;
-                        const result = await this.player.play(voiceChannel, alternativeUrl, {
-                            nodeOptions: {
-                                metadata: {
-                                    channel: textChannel
-                                },
-                                leaveOnEnd: false,
-                                leaveOnEmpty: true,
-                                leaveOnEmptyCooldown: 300000,
-                                bufferingTimeout: 30000
-                            },
-                            searchEngine: QueryType.AUTO,
-                            requestedBy: textChannel.client.user as User
-                        });
+                        this.logger.info(`Tentative de recherche générique pour l'ID: ${videoId}`);
 
-                        if (result && result.track) {
-                            const cache = this.getGuildCache(voiceChannel.guild.id);
-                            cache.currentTrack = result.track;
-                            return result.track;
+                        // Approche 1: recherche par titre
+                        try {
+                            const info = await ytdl.getBasicInfo(`https://www.youtube.com/watch?v=${videoId}`);
+                            if (info && info.videoDetails && info.videoDetails.title) {
+                                const searchResult = await this.player.search(info.videoDetails.title, {
+                                    requestedBy: textChannel.client.user as User
+                                });
+
+                                if (searchResult.tracks.length > 0) {
+                                    const result = await this.player.play(voiceChannel, searchResult.tracks[0], {
+                                        nodeOptions: {
+                                            metadata: {
+                                                channel: textChannel
+                                            },
+                                            leaveOnEnd: false,
+                                            leaveOnEmpty: true,
+                                            leaveOnEmptyCooldown: 300000,
+                                            bufferingTimeout: 30000,
+                                        },
+                                        requestedBy: textChannel.client.user as User
+                                    });
+
+                                    const cache = this.getGuildCache(voiceChannel.guild.id);
+                                    cache.currentTrack = result.track;
+                                    return result.track;
+                                }
+                            }
+                        } catch (titleError) {
+                            this.logger.error(`Échec de recherche par titre: ${titleError}`);
+                        }
+
+                        // Approche 2: recherche simple avec l'ID
+                        try {
+                            const searchTerm = `music ${videoId.replace(/-/g, ' ')}`;
+                            this.logger.info(`Tentative de recherche simple: ${searchTerm}`);
+
+                            const searchResult = await this.player.search(searchTerm, {
+                                requestedBy: textChannel.client.user as User
+                            });
+
+                            if (searchResult.tracks.length > 0) {
+                                const result = await this.player.play(voiceChannel, searchResult.tracks[0], {
+                                    nodeOptions: {
+                                        metadata: {
+                                            channel: textChannel
+                                        },
+                                        leaveOnEnd: false,
+                                        leaveOnEmpty: true,
+                                        leaveOnEmptyCooldown: 300000,
+                                        bufferingTimeout: 30000,
+                                    },
+                                    requestedBy: textChannel.client.user as User
+                                });
+
+                                const cache = this.getGuildCache(voiceChannel.guild.id);
+                                cache.currentTrack = result.track;
+                                return result.track;
+                            }
+                        } catch (simpleError) {
+                            this.logger.error(`Échec de recherche simple: ${simpleError}`);
                         }
                     }
-                } catch (alternativeError) {
-                    this.logger.error(`Échec de la méthode alternative: ${alternativeError}`);
+                } catch (finalError) {
+                    this.logger.error(`Échec de toutes les approches de récupération: ${finalError}`);
                 }
             }
 
-            // Gérer correctement l'erreur avec TypeScript
-            throw new Error(`Erreur de lecture: ${(error as Error).message || 'Erreur inconnue'}`);
+            // Si nous arrivons ici, c'est que toutes les tentatives ont échoué
+            throw new Error(`Impossible de lire cette piste. Essayez avec un autre lien ou une recherche par mots-clés.`);
         }
     }
 

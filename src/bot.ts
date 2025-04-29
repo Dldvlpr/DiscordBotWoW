@@ -43,6 +43,7 @@ export class Bot {
                 GatewayIntentBits.GuildMessages,
                 GatewayIntentBits.MessageContent,
                 GatewayIntentBits.GuildMembers,
+                GatewayIntentBits.GuildVoiceStates,
             ]
         });
 

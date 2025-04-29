@@ -9,6 +9,7 @@ import {
 } from 'discord.js';
 import { Player, QueryType, Track, GuildQueue } from 'discord-player';
 import { Logger } from '../utils/Logger';
+import { DefaultExtractors } from '@discord-player/extractor';
 
 interface GuildMusicCache {
     currentTrack: Track | null;
@@ -31,18 +32,28 @@ export class MusicPlayer {
     private readonly inactivityCleanupInterval: NodeJS.Timeout;
 
     private readonly INACTIVITY_CLEANUP_MS = 15 * 60 * 1000;
+    private extractorsLoaded: boolean = false;
 
     constructor(client: Client) {
         this.logger = new Logger('MusicPlayer');
         this.player = new Player(client);
-
-        this.player.extractors.loadDefault();
 
         this.setupEventListeners();
 
         this.inactivityCleanupInterval = setInterval(() => {
             this.cleanupInactiveGuilds();
         }, 5 * 60 * 1000);
+    }
+
+    public async initialize(): Promise<void> {
+        try {
+            await this.player.extractors.loadMulti(DefaultExtractors);
+            this.extractorsLoaded = true;
+            this.logger.info('Extracteurs musicaux chargés avec succès');
+        } catch (error) {
+            this.logger.error('Erreur lors du chargement des extracteurs:', error);
+            throw error;
+        }
     }
 
     private setupEventListeners(): void {
@@ -259,6 +270,10 @@ export class MusicPlayer {
     }
 
     public async play(voiceChannel: VoiceChannel, query: string, textChannel: TextChannel): Promise<Track> {
+        if (!this.extractorsLoaded) {
+            throw new Error('Le lecteur de musique n\'est pas encore initialisé');
+        }
+
         if (!voiceChannel || !textChannel) {
             throw new Error('Canal vocal ou textuel non spécifié');
         }
@@ -297,6 +312,8 @@ export class MusicPlayer {
     }
 
     public pause(guildId: GuildResolvable): boolean {
+        if (!this.extractorsLoaded) return false;
+
         const stringGuildId = guildId instanceof Guild ? guildId.id : String(guildId);
         this.updateActivity(stringGuildId);
 
@@ -310,6 +327,8 @@ export class MusicPlayer {
     }
 
     public resume(guildId: GuildResolvable): boolean {
+        if (!this.extractorsLoaded) return false;
+
         const stringGuildId = guildId instanceof Guild ? guildId.id : String(guildId);
         this.updateActivity(stringGuildId);
 
@@ -323,6 +342,8 @@ export class MusicPlayer {
     }
 
     public skip(guildId: GuildResolvable): boolean {
+        if (!this.extractorsLoaded) return false;
+
         const stringGuildId = guildId instanceof Guild ? guildId.id : String(guildId);
         this.updateActivity(stringGuildId);
 
@@ -336,6 +357,8 @@ export class MusicPlayer {
     }
 
     public stop(guildId: GuildResolvable): boolean {
+        if (!this.extractorsLoaded) return false;
+
         const stringGuildId = guildId instanceof Guild ? guildId.id : String(guildId);
 
         const queue = this.player.nodes.get(guildId);
@@ -349,6 +372,8 @@ export class MusicPlayer {
     }
 
     public setVolume(guildId: GuildResolvable, volume: number): boolean {
+        if (!this.extractorsLoaded) return false;
+
         const stringGuildId = guildId instanceof Guild ? guildId.id : String(guildId);
         this.updateActivity(stringGuildId);
 
@@ -363,6 +388,8 @@ export class MusicPlayer {
     }
 
     public getQueue(guildId: GuildResolvable): QueueInfo | null {
+        if (!this.extractorsLoaded) return null;
+
         const stringGuildId = guildId instanceof Guild ? guildId.id : String(guildId);
         this.updateActivity(stringGuildId);
 

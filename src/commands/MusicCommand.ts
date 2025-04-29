@@ -13,14 +13,34 @@ import { MusicPlayer } from "../audio/MusicPlayer";
 
 export class MusicCommand extends Command {
     private musicPlayer: MusicPlayer;
+    private initialized: boolean = false;
 
     constructor(client: Client) {
         super("music");
         this.musicPlayer = new MusicPlayer(client);
     }
 
+    async initialize(): Promise<void> {
+        try {
+            await this.musicPlayer.initialize();
+            this.initialized = true;
+            this.logger.info("Music command initialized successfully");
+        } catch (error) {
+            this.logger.error("Failed to initialize music command:", error);
+            throw error;
+        }
+    }
+
     async execute(interaction: ChatInputCommandInteraction, client: Client): Promise<void> {
         try {
+            if (!this.initialized) {
+                await interaction.reply({
+                    content: "Le système de musique est en cours d'initialisation. Veuillez réessayer dans quelques instants.",
+                    ephemeral: true
+                });
+                return;
+            }
+
             const member = interaction.member;
             if (!member || !(member instanceof GuildMember) || !member.voice.channel) {
                 await interaction.reply({

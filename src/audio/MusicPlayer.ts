@@ -9,66 +9,6 @@ import {
 } from 'discord.js';
 import { Player, QueryType, Track, GuildQueue } from 'discord-player';
 import { Logger } from '../utils/Logger';
-// Importez les classes nécessaires de discord-player
-import { BaseExtractor } from 'discord-player';
-// Importez play-dl pour la lecture YouTube
-import play from 'play-dl';
-
-// Création d'un extracteur personnalisé selon la documentation de Discord Player v7
-// https://discord-player.js.org/docs/extractors/creating_extractor
-// https://discord-player.js.org/docs/extractors/stream_sources
-class YoutubeExtractor extends BaseExtractor {
-    static identifier = 'youtube-extractor';
-
-    // Vérifie si cette URL peut être traitée par cet extracteur
-    public async validate(query: string): Promise<boolean> {
-        return (
-            query.includes('youtube.com') ||
-            query.includes('youtu.be')
-        );
-    }
-
-    // Obtient les données de stream pour cette URL
-    public async getStreamData(query: string): Promise<any> {
-        try {
-            // Utiliser play-dl pour obtenir des informations sur la vidéo
-            const videoInfo = await play.video_info(query);
-            if (!videoInfo || !videoInfo.video_details) {
-                throw new Error(`Impossible d'obtenir les informations vidéo pour ${query}`);
-            }
-
-            const video = videoInfo.video_details;
-
-            // Obtenir le flux audio avec la meilleure qualité
-            const stream = await play.stream(query, { quality: 2 });
-
-            // Renvoyer le format attendu par Discord Player
-            return {
-                stream: stream.stream,
-                type: stream.type,
-                info: {
-                    title: video.title || 'Unknown Title',
-                    description: video.description || '',
-                    url: video.url,
-                    thumbnail: video.thumbnails[0]?.url,
-                    duration: video.durationInSec * 1000, // En millisecondes
-                    views: video.views,
-                    author: {
-                        name: video.channel?.name || 'Unknown Author',
-                        url: video.channel?.url
-                    },
-                    requestedBy: null, // Sera défini par le Player
-                    source: 'youtube',
-                    engine: 'play-dl',
-                    raw: video
-                }
-            };
-        } catch (error) {
-            console.error('Erreur extracteur YouTube:', error);
-            throw error;
-        }
-    }
-}
 
 interface QueueInfo {
     currentTrack: Track | null;
@@ -84,14 +24,10 @@ export class MusicPlayer {
     private readonly inactivityCleanupInterval: NodeJS.Timeout;
     private lastError: Error | null = null;
     private initializationPromise: Promise<void> | null = null;
-    private extractorsRegistered = false;
 
     constructor(client: Client) {
         this.logger = new Logger('MusicPlayer');
-
-        // Initialize player with the correct options for v7
         this.player = new Player(client);
-
         this.inactivityCleanupInterval = setInterval(() => {
             this.cleanupInactiveGuilds();
         }, 10 * 60 * 1000);
@@ -120,23 +56,7 @@ export class MusicPlayer {
     private async _initialize(): Promise<void> {
         try {
             this.logger.info("Initialisation du lecteur audio...");
-
             this.setupEventListeners();
-
-            // Tentative d'enregistrement de l'extracteur YouTube personnalisé
-            try {
-                this.logger.info("Enregistrement de l'extracteur YouTube personnalisé...");
-
-                // Enregistrer notre extracteur personnalisé avec les options vides requises
-                await this.player.extractors.register(YoutubeExtractor, {});
-
-                this.logger.info("Extracteur YouTube personnalisé enregistré avec succès!");
-                this.extractorsRegistered = true;
-            } catch (extractorError) {
-                this.logger.error(`Erreur lors de l'enregistrement de l'extracteur YouTube:`, extractorError);
-                this.logger.warn("La lecture directe des URL YouTube peut ne pas fonctionner correctement.");
-            }
-
             this.initialized = true;
             this.logger.info("MusicPlayer initialisé avec succès!");
         } catch (error) {
@@ -147,7 +67,6 @@ export class MusicPlayer {
     }
 
     private setupEventListeners(): void {
-        // Set up event listeners according to the current API
         this.player.events.on('playerStart', (queue, track) => {
             this.updateActivity(queue.guild.id);
             this.sendNowPlayingMessage(queue, track);
@@ -180,7 +99,6 @@ export class MusicPlayer {
             }
         });
 
-        // Debug event for troubleshooting
         this.player.events.on('debug', (queue, message) => {
             this.logger.debug(`Player debug [${queue?.guild?.name || 'Unknown'}]: ${message}`);
         });
@@ -247,6 +165,57 @@ export class MusicPlayer {
         this.logger.info('Ressources du lecteur musical libérées');
     }
 
+    /**
+     * Extraire l'artiste et le titre d'une URL YouTube si disponible
+     * Cette fonction utilise des expressions régulières pour extraire le titre
+     */
+    private extractInfoFromYouTubeUrl(url: string): { searchTerm: string } {
+        try {
+            // Extraire le titre depuis l'URL si présent (après le paramètre 'v=' et avant un éventuel '&')
+            const videoId = url.includes('youtu.be/')
+                ? url.split('youtu.be/')[1].split(/[?&]/)[0]
+                : url.includes('watch?v=')
+                    ? url.split('watch?v=')[1].split(/[?&]/)[0]
+                    : '';
+
+            // Préparer un terme de recherche général basé sur l'ID
+            const searchTerm = videoId
+                ? `youtube ${videoId}`
+                : url.replace(/https?:\/\/(www\.)?youtube\.com\/|https?:\/\/youtu\.be\//, '')
+                    .replace(/[?&].*$/, '')
+                    .replace(/-|_/g, ' ')
+                    .trim();
+
+            return { searchTerm };
+        } catch (error) {
+            // En cas d'erreur, retourner l'URL elle-même comme terme de recherche
+            return { searchTerm: url };
+        }
+    }
+
+    /**
+     * Extraire l'artiste et le titre d'une URL Spotify
+     */
+    private extractInfoFromSpotifyUrl(url: string): { searchTerm: string } {
+        try {
+            // Extraire l'ID de piste (après 'track/' et avant un éventuel '?')
+            const trackId = url.match(/track\/([a-zA-Z0-9]+)/)?.[1] || '';
+
+            // Préparer un terme de recherche
+            const searchTerm = trackId
+                ? `spotify track ${trackId}`
+                : url.replace(/https?:\/\/open\.spotify\.com\/.*?\//, '')
+                    .replace(/[?&].*$/, '')
+                    .replace(/-|_/g, ' ')
+                    .trim();
+
+            return { searchTerm };
+        } catch (error) {
+            // En cas d'erreur, retourner l'URL comme terme de recherche
+            return { searchTerm: url };
+        }
+    }
+
     public async play(voiceChannel: VoiceChannel, query: string, textChannel: TextChannel): Promise<Track> {
         if (!this.isInitialized()) {
             try {
@@ -264,8 +233,22 @@ export class MusicPlayer {
         this.updateActivity(voiceChannel.guild.id);
         this.logger.info(`Lecture demandée pour "${query}" dans ${voiceChannel.guild.name}`);
 
+        // Détecter le type d'URL et préparer des informations de secours
+        let searchInfo = { searchTerm: query };
+        let source = 'unknown';
+
+        if (query.includes('youtube.com') || query.includes('youtu.be')) {
+            searchInfo = this.extractInfoFromYouTubeUrl(query);
+            source = 'youtube';
+        } else if (query.includes('spotify.com') || query.includes('open.spotify')) {
+            searchInfo = this.extractInfoFromSpotifyUrl(query);
+            source = 'spotify';
+        }
+
         try {
-            // Lecture via Discord Player
+            // Tentative 1: Lecture via Discord Player standard (peut maintenant utiliser des extracteurs)
+            this.logger.debug(`Tentative de lecture avec Discord Player: ${query}`);
+
             const result = await this.player.play(voiceChannel, query, {
                 nodeOptions: {
                     metadata: { channel: textChannel },
@@ -289,82 +272,104 @@ export class MusicPlayer {
             this.lastError = error instanceof Error ? error : new Error(String(error));
             this.logger.error(`Erreur lors de la lecture:`, error);
 
-            // Si c'est une URL YouTube, essayons une recherche directe
-            if (query.includes('youtube.com') || query.includes('youtu.be')) {
-                try {
-                    this.logger.debug("Tentative avec recherche YouTube directe...");
+            // Vérifier si l'erreur est liée à une limitation d'API (429)
+            const isRateLimited = error instanceof Error &&
+                (error.message.includes('429') || error.message.includes('Too Many Requests'));
 
-                    const searchResult = await this.player.search(query, {
-                        requestedBy: textChannel.client.user as User,
-                        searchEngine: QueryType.YOUTUBE_SEARCH
-                    });
-
-                    if (searchResult.tracks.length > 0) {
-                        this.logger.debug(`Recherche réussie, tentative de lecture avec le résultat: ${searchResult.tracks[0].title}`);
-
-                        const result = await this.player.play(voiceChannel, searchResult.tracks[0], {
-                            nodeOptions: {
-                                metadata: { channel: textChannel },
-                                leaveOnEmpty: true,
-                                leaveOnEmptyCooldown: 300000,
-                                leaveOnEnd: false,
-                                bufferingTimeout: 20000,
-                                selfDeaf: true,
-                            },
-                            requestedBy: textChannel.client.user as User
-                        });
-
-                        return result.track;
-                    }
-                } catch (fallbackError) {
-                    this.logger.error("L'approche de secours a également échoué:", fallbackError);
-                }
-
-                // Solution de dernier recours: utiliser directement play-dl
-                try {
-                    this.logger.debug("Tentative directe avec play-dl...");
-
-                    // Obtenir les informations de la vidéo
-                    const videoInfo = await play.video_info(query);
-                    const video = videoInfo.video_details;
-
-                    // Créer un objet track similaire à celui de Discord Player
-                    const track = {
-                        id: video.id || '',
-                        title: video.title || 'Unknown',
-                        description: video.description || '',
-                        author: video.channel?.name || 'Unknown',
-                        url: video.url,
-                        thumbnail: video.thumbnails[0]?.url,
-                        duration: video.durationInSec ? `${Math.floor(video.durationInSec / 60)}:${(video.durationInSec % 60).toString().padStart(2, '0')}` : 'Unknown',
-                        durationMS: video.durationInSec ? video.durationInSec * 1000 : 0,
-                        views: video.views,
-                        requestedBy: textChannel.client.user as User,
-                        playlist: null,
-                        source: 'youtube'
-                    } as unknown as  Track;
-
-                    // Obtenir le stream
-                    const stream = await play.stream(query);
-
-                    // Essayer de jouer avec le player
-                    // (Code simplifié pour la démo - dans un vrai cas, il faudrait
-                    // intégrer correctement avec la couche AudioPlayer de discord.js)
-
-                    this.logger.info(`Lecture directe avec play-dl: "${track.title}"`);
-
-                    await textChannel.send(`⚠️ Utilisation du mode de secours pour jouer: **${track.title}**`);
-
-                    // Dans un cas réel, vous devriez créer une ressource audio et la jouer
-                    // mais cela nécessiterait de modifier davantage la structure du code
-
-                    return track;
-                } catch (playDlError) {
-                    this.logger.error("Échec de la tentative avec play-dl:", playDlError);
-                }
+            if (isRateLimited) {
+                this.logger.warn('Limitation de taux détectée (429). Utilisation de méthode alternative...');
             }
 
-            throw new Error(`Impossible de lire cette piste. Erreur: ${error instanceof Error ? error.message : String(error)}`);
+            // Tentative 2: Recherche directe au lieu d'utiliser l'URL
+            try {
+                this.logger.debug(`Tentative de recherche par terme: "${searchInfo.searchTerm}"`);
+
+                // Choisir le moteur de recherche en fonction du type détecté
+                const searchEngine = source === 'youtube'
+                    ? QueryType.YOUTUBE_SEARCH
+                    : source === 'spotify'
+                        ? QueryType.AUTO
+                        : QueryType.AUTO;
+
+                const searchResult = await this.player.search(searchInfo.searchTerm, {
+                    requestedBy: textChannel.client.user as User,
+                    searchEngine: searchEngine
+                });
+
+                if (searchResult.tracks.length > 0) {
+                    this.logger.debug(`Recherche réussie, lecture du résultat: ${searchResult.tracks[0].title}`);
+
+                    // Message informant de l'utilisation d'une méthode alternative
+                    if (isRateLimited) {
+                        await textChannel.send({
+                            content: `⚠️ En raison de limitations d'API, je dois utiliser une méthode alternative pour lire cette piste.`
+                        }).catch(() => {}); // Ignorer les erreurs d'envoi
+                    }
+
+                    const result = await this.player.play(voiceChannel, searchResult.tracks[0], {
+                        nodeOptions: {
+                            metadata: { channel: textChannel },
+                            leaveOnEmpty: true,
+                            leaveOnEmptyCooldown: 300000,
+                            leaveOnEnd: false,
+                            bufferingTimeout: 20000,
+                            selfDeaf: true,
+                        },
+                        requestedBy: textChannel.client.user as User
+                    });
+
+                    return result.track;
+                }
+            } catch (searchError) {
+                this.logger.error(`Échec de la recherche alternative:`, searchError);
+            }
+
+            // Tentative 3: Recherche plus générique avec moins de spécificité
+            try {
+                // Construire un terme de recherche très générique
+                let genericTerm;
+
+                if (source === 'youtube') {
+                    genericTerm = 'music ' + searchInfo.searchTerm.replace(/youtube|video|watch/gi, '').trim();
+                } else if (source === 'spotify') {
+                    genericTerm = 'music ' + searchInfo.searchTerm.replace(/spotify|track/gi, '').trim();
+                } else {
+                    genericTerm = 'music ' + query.split(' ').slice(0, 3).join(' ');
+                }
+
+                this.logger.debug(`Tentative de recherche générique: "${genericTerm}"`);
+
+                const genericSearch = await this.player.search(genericTerm, {
+                    requestedBy: textChannel.client.user as User,
+                    searchEngine: QueryType.AUTO
+                });
+
+                if (genericSearch.tracks.length > 0) {
+                    this.logger.debug(`Recherche générique réussie, lecture: ${genericSearch.tracks[0].title}`);
+
+                    await textChannel.send({
+                        content: `⚠️ Impossible de trouver exactement ce que vous demandez. Lecture de: **${genericSearch.tracks[0].title}** à la place.`
+                    }).catch(() => {});
+
+                    const result = await this.player.play(voiceChannel, genericSearch.tracks[0], {
+                        nodeOptions: {
+                            metadata: { channel: textChannel },
+                            leaveOnEmpty: true,
+                            leaveOnEmptyCooldown: 300000,
+                            leaveOnEnd: false,
+                            bufferingTimeout: 20000,
+                            selfDeaf: true,
+                        },
+                        requestedBy: textChannel.client.user as User
+                    });
+
+                    return result.track;
+                }
+            } catch (genericError) {
+                this.logger.error(`Échec de la recherche générique:`, genericError);
+            }
+
+            throw new Error(`Impossible de lire cette piste, même avec les méthodes alternatives. Veuillez essayer avec un autre lien ou une recherche directe.`);
         }
     }
 
@@ -484,13 +489,11 @@ export class MusicPlayer {
 
     public getStatus(): {
         initialized: boolean;
-        extractorsRegistered: boolean;
         activeGuilds: number;
         lastError: string | null;
     } {
         return {
             initialized: this.initialized,
-            extractorsRegistered: this.extractorsRegistered,
             activeGuilds: this.guildCaches.size,
             lastError: this.lastError ? this.lastError.message : null
         };

@@ -9,24 +9,27 @@ import {
 } from 'discord.js';
 import { Player, QueryType, Track, GuildQueue } from 'discord-player';
 import { Logger } from '../utils/Logger';
-// Importez play-dl si vous avez besoin d'une solution plus robuste pour YouTube
+// Importez les classes nécessaires de discord-player
+import { BaseExtractor } from 'discord-player';
+// Importez play-dl pour la lecture YouTube
 import play from 'play-dl';
 
 // Création d'un extracteur personnalisé selon la documentation de Discord Player v7
 // https://discord-player.js.org/docs/extractors/creating_extractor
 // https://discord-player.js.org/docs/extractors/stream_sources
-const YoutubeExtractor = {
-    validate: (query) => {
-        // Validation des URLs YouTube
+class YoutubeExtractor extends BaseExtractor {
+    static identifier = 'youtube-extractor';
+
+    // Vérifie si cette URL peut être traitée par cet extracteur
+    public async validate(query: string): Promise<boolean> {
         return (
             query.includes('youtube.com') ||
-            query.includes('youtu.be') ||
-            query.includes('youtube') ||
             query.includes('youtu.be')
         );
-    },
+    }
 
-    getStreamData: async (query) => {
+    // Obtient les données de stream pour cette URL
+    public async getStreamData(query: string): Promise<any> {
         try {
             // Utiliser play-dl pour obtenir des informations sur la vidéo
             const videoInfo = await play.video_info(query);
@@ -65,7 +68,7 @@ const YoutubeExtractor = {
             throw error;
         }
     }
-};
+}
 
 interface QueueInfo {
     currentTrack: Track | null;
@@ -325,6 +328,7 @@ export class MusicPlayer {
                     const videoInfo = await play.video_info(query);
                     const video = videoInfo.video_details;
 
+                    // Créer un objet track similaire à celui de Discord Player
                     const track = {
                         id: video.id || '',
                         title: video.title || 'Unknown',
@@ -338,7 +342,7 @@ export class MusicPlayer {
                         requestedBy: textChannel.client.user as User,
                         playlist: null,
                         source: 'youtube'
-                    } as unknown as Track;
+                    } as unknown as  Track;
 
                     // Obtenir le stream
                     const stream = await play.stream(query);

@@ -4,7 +4,7 @@
   "description": "BOT V1 for guild sync",
   "main": "dist/index.js",
   "scripts": {
-    "intall:project": "npm install && sudo apt update && npm install ffmpeg-static --save",
+    "intall:project": "npm install && sudo apt update && git pull && npm run build && npm run postbuild && npm run deploy",
     "start": "cross-env NODE_ENV=production node dist/index.js",
     "prestart": "npm run migrate",
     "dev": "cross-env NODE_ENV=development ts-node src/index.ts",

@@ -38,15 +38,18 @@ export class MusicCommand extends Command {
                     });
                 } catch (initError) {
                     this.logger.error("Erreur lors de l'initialisation du MusicPlayer:", initError);
+                    await interaction.followUp({
+                        content: `❌ Erreur d'initialisation: ${initError instanceof Error ? initError.message : String(initError)}`,
+                        ephemeral: true
+                    });
+                    return;
                 }
-
-                return;
             }
 
             const member = interaction.member;
             if (!member || !(member instanceof GuildMember) || !member.voice.channel) {
                 await interaction.reply({
-                    content: "Vous devez être dans un canal vocal pour utiliser cette commande.",
+                    content: "❌ Vous devez être dans un canal vocal pour utiliser cette commande.",
                     ephemeral: true
                 });
                 return;
@@ -55,7 +58,7 @@ export class MusicCommand extends Command {
             const voiceChannel = member.voice.channel;
             if (voiceChannel.type !== ChannelType.GuildVoice) {
                 await interaction.reply({
-                    content: "Le canal doit être un canal vocal.",
+                    content: "❌ Le canal doit être un canal vocal.",
                     ephemeral: true
                 });
                 return;
@@ -87,16 +90,25 @@ export class MusicCommand extends Command {
                     break;
                 default:
                     await interaction.reply({
-                        content: "Sous-commande inconnue.",
+                        content: "❓ Sous-commande inconnue.",
                         ephemeral: true
                     });
             }
         } catch (error) {
-            this.logger.error(`Erreur dans l'exécution de la commande music: ${error}`);
-            await interaction.reply({
-                content: `Une erreur est survenue: ${error instanceof Error ? error.message : String(error)}`,
-                ephemeral: true
-            });
+            this.logger.error(`Erreur dans l'exécution de la commande music:`, error);
+
+            const errorMessage = error instanceof Error
+                ? error.message
+                : String(error);
+
+            if (interaction.deferred) {
+                await interaction.editReply(`❌ Une erreur est survenue: ${errorMessage}`);
+            } else {
+                await interaction.reply({
+                    content: `❌ Une erreur est survenue: ${errorMessage}`,
+                    ephemeral: true
+                });
+            }
         }
     }
 
@@ -107,7 +119,7 @@ export class MusicCommand extends Command {
 
         try {
             if (!interaction.channel || interaction.channel.type !== ChannelType.GuildText) {
-                await interaction.editReply("Cette commande doit être utilisée dans un canal textuel d'un serveur.");
+                await interaction.editReply("❌ Cette commande doit être utilisée dans un canal textuel d'un serveur.");
                 return;
             }
 
@@ -123,11 +135,10 @@ export class MusicCommand extends Command {
         }
     }
 
-    // Reste du code inchangé...
     private async handleSkip(interaction: ChatInputCommandInteraction): Promise<void> {
         if (!interaction.guildId) {
             await interaction.reply({
-                content: "Cette commande ne peut être utilisée que sur un serveur.",
+                content: "❌ Cette commande ne peut être utilisée que sur un serveur.",
                 ephemeral: true
             });
             return;
@@ -139,7 +150,7 @@ export class MusicCommand extends Command {
             await interaction.reply("⏭️ Morceau suivant !");
         } else {
             await interaction.reply({
-                content: "Aucune musique n'est en cours de lecture.",
+                content: "❌ Aucune musique n'est en cours de lecture.",
                 ephemeral: true
             });
         }
@@ -148,7 +159,7 @@ export class MusicCommand extends Command {
     private async handleStop(interaction: ChatInputCommandInteraction): Promise<void> {
         if (!interaction.guildId) {
             await interaction.reply({
-                content: "Cette commande ne peut être utilisée que sur un serveur.",
+                content: "❌ Cette commande ne peut être utilisée que sur un serveur.",
                 ephemeral: true
             });
             return;
@@ -160,7 +171,7 @@ export class MusicCommand extends Command {
             await interaction.reply("⏹️ Lecture arrêtée et file d'attente vidée.");
         } else {
             await interaction.reply({
-                content: "Aucune musique n'est en cours de lecture.",
+                content: "❌ Aucune musique n'est en cours de lecture.",
                 ephemeral: true
             });
         }
@@ -169,7 +180,7 @@ export class MusicCommand extends Command {
     private async handlePause(interaction: ChatInputCommandInteraction): Promise<void> {
         if (!interaction.guildId) {
             await interaction.reply({
-                content: "Cette commande ne peut être utilisée que sur un serveur.",
+                content: "❌ Cette commande ne peut être utilisée que sur un serveur.",
                 ephemeral: true
             });
             return;
@@ -181,7 +192,7 @@ export class MusicCommand extends Command {
             await interaction.reply("⏸️ Lecture mise en pause.");
         } else {
             await interaction.reply({
-                content: "Aucune musique n'est en cours de lecture.",
+                content: "❌ Aucune musique n'est en cours de lecture.",
                 ephemeral: true
             });
         }
@@ -190,7 +201,7 @@ export class MusicCommand extends Command {
     private async handleResume(interaction: ChatInputCommandInteraction): Promise<void> {
         if (!interaction.guildId) {
             await interaction.reply({
-                content: "Cette commande ne peut être utilisée que sur un serveur.",
+                content: "❌ Cette commande ne peut être utilisée que sur un serveur.",
                 ephemeral: true
             });
             return;
@@ -202,7 +213,7 @@ export class MusicCommand extends Command {
             await interaction.reply("▶️ Lecture reprise.");
         } else {
             await interaction.reply({
-                content: "La musique n'est pas en pause.",
+                content: "❌ La musique n'est pas en pause.",
                 ephemeral: true
             });
         }
@@ -211,7 +222,7 @@ export class MusicCommand extends Command {
     private async handleQueue(interaction: ChatInputCommandInteraction): Promise<void> {
         if (!interaction.guildId) {
             await interaction.reply({
-                content: "Cette commande ne peut être utilisée que sur un serveur.",
+                content: "❌ Cette commande ne peut être utilisée que sur un serveur.",
                 ephemeral: true
             });
             return;
@@ -221,7 +232,7 @@ export class MusicCommand extends Command {
 
         if (!queueInfo || !queueInfo.currentTrack) {
             await interaction.reply({
-                content: "Aucune musique n'est en cours de lecture.",
+                content: "ℹ️ Aucune musique n'est en cours de lecture.",
                 ephemeral: true
             });
             return;
@@ -258,7 +269,7 @@ export class MusicCommand extends Command {
     private async handleVolume(interaction: ChatInputCommandInteraction): Promise<void> {
         if (!interaction.guildId) {
             await interaction.reply({
-                content: "Cette commande ne peut être utilisée que sur un serveur.",
+                content: "❌ Cette commande ne peut être utilisée que sur un serveur.",
                 ephemeral: true
             });
             return;
@@ -268,7 +279,7 @@ export class MusicCommand extends Command {
 
         if (volume < 0 || volume > 100) {
             await interaction.reply({
-                content: "Le volume doit être entre 0 et 100.",
+                content: "❌ Le volume doit être entre 0 et 100.",
                 ephemeral: true
             });
             return;
@@ -280,7 +291,7 @@ export class MusicCommand extends Command {
             await interaction.reply(`🔊 Volume réglé à ${volume}%`);
         } else {
             await interaction.reply({
-                content: "Aucune musique n'est en cours de lecture.",
+                content: "❌ Aucune musique n'est en cours de lecture.",
                 ephemeral: true
             });
         }

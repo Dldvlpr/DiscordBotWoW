@@ -12,10 +12,15 @@ export class MusicHandler extends BaseHandler {
 
     async initialize(): Promise<void> {
         try {
-            this.logger.info('Music handler initialized');
+            if (!this.musicPlayer.isInitialized()) {
+                this.logger.info('Initialisation du lecteur de musique...');
+                await this.musicPlayer.initialize();
+            }
+
+            this.logger.info('Music handler initialized successfully');
         } catch (error) {
             this.logger.error('Failed to initialize music handler:', error);
-            throw error;
+            this.logger.warn('Music player will attempt to initialize when a music command is used');
         }
     }
 

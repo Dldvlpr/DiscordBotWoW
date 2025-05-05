@@ -1,5 +1,5 @@
-import { Client } from 'discord.js';
-import { Logger } from '../utils/Logger';
+import {Client} from 'discord.js';
+import {Logger} from '../utils/Logger';
 
 interface ResetInfo {
     nextReset: Date;
@@ -20,12 +20,12 @@ export class RaidResetService {
         this.logger = new Logger('RaidResetService');
 
         this.resetInfo3d = {
-            nextReset: this.calculateNextReset(3, new Date('2025-04-22T03:00:00Z')),
+            nextReset: this.calculateNextReset(3, new Date('2025-05-05T03:00:00Z')),
             timeLeft: ""
         };
 
         this.resetInfo5d = {
-            nextReset: this.calculateNextReset(5, new Date('2025-04-28T03:00:00Z')),
+            nextReset: this.calculateNextReset(5, new Date('2025-05-02T03:00:00Z')),
             timeLeft: ""
         };
 
@@ -86,9 +86,7 @@ export class RaidResetService {
         const millisSinceBase = now.getTime() - baseDate.getTime();
         const completedCycles = Math.floor(millisSinceBase / millisPerCycle);
 
-        const nextReset = new Date(baseDate.getTime() + (completedCycles + 1) * millisPerCycle);
-
-        return nextReset;
+        return new Date(baseDate.getTime() + (completedCycles + 1) * millisPerCycle);
     }
 
     private calculateNextWednesdayReset(): Date {

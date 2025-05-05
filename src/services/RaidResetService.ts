@@ -73,7 +73,7 @@ export class RaidResetService {
     private updateStatus(): void {
             this.updateAllTimers();
 
-            const statusText = `3D: ${this.resetInfo3d.timeLeft} | 5D: ${this.resetInfo5d.timeLeft} | 7D: ${this.resetInfo7d.timeLeft}`;
+            const statusText = `3D: ${this.resetInfo3d.timeLeft}\n5D: ${this.resetInfo5d.timeLeft}\n7D: ${this.resetInfo7d.timeLeft}`;
 
             this.client.user?.setActivity(statusText, { type: 4 });
     }

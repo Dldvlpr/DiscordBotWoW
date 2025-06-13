@@ -3,9 +3,10 @@ import {CronJob as CronJobJs} from 'cron';
 import {BaseHandler} from './BaseHandler';
 import {CronJob as CronJobModel} from '../models/cronJob';
 import {RaidHelperEvent} from '../models/raidHelperEvent';
-import {GuildInstance} from '../models/guildInstance';
 import {format} from 'date-fns';
 import {fr} from 'date-fns/locale';
+import TextChannelJobService from '../services/TextChannelJobService';
+import CronJobService from '../services/CronJobService';
 
 export class CronHandler extends BaseHandler {
     private cronJobs: Map<string, CronJobJs> = new Map();
@@ -20,9 +21,7 @@ export class CronHandler extends BaseHandler {
 
             this.stopAllJobs();
 
-            const activeJobs = await CronJobModel.findAll({
-                where: {isActive: true}
-            });
+            const activeJobs = await CronJobService.getActiveJobs();
 
             for (const job of activeJobs) {
                 this.scheduleCronJob(job);
@@ -74,7 +73,7 @@ export class CronHandler extends BaseHandler {
     private async executeCronJob(cronJobModel: CronJobModel): Promise<void> {
         try {
             if (cronJobModel.categoryId) {
-                await this.createTextChannel(cronJobModel);
+                await TextChannelJobService.executeJob(cronJobModel, this.client);
                 return;
             }
 
@@ -93,32 +92,6 @@ export class CronHandler extends BaseHandler {
         }
     }
 
-    private async createTextChannel(cronJobModel: CronJobModel): Promise<void> {
-        try {
-            const guildInstance = await GuildInstance.findByPk(cronJobModel.guildInstanceId);
-            if (!guildInstance) return;
-
-            const guild = await this.client.guilds.fetch(guildInstance.guildId);
-            if (!guild) return;
-
-            const today = new Date();
-            const formattedDate = format(today, 'yyyy-MM-dd');
-            const shouldIncludeDate = cronJobModel.description?.includes("NO_DATE") !== true;
-            const channelName = shouldIncludeDate
-                ? `${cronJobModel.name}-${formattedDate}`
-                : cronJobModel.name;
-            const channel = await guild.channels.create({
-                name: channelName,
-                type: 0,
-                parent: cronJobModel.categoryId
-            });
-
-            this.logger.info(`Channel created: ${channel.name} in ${guild.name}`);
-        } catch (error) {
-            this.logger.error(`Error creating channel:`, error);
-            throw error;
-        }
-    }
 
     private async createRaidHelperEvent(raidHelperEvent: RaidHelperEvent): Promise<void> {
         try {

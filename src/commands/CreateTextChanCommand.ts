@@ -6,6 +6,7 @@ import { Error, Op, WhereOptions } from "sequelize";
 import { format, parse, isValid, addDays, addWeeks, getDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { CronJobInterface } from "../interfaces/cronJob.interface";
+import TextChannelJobService from "../services/TextChannelJobService";
 
 export class CreateTextChanCommand extends Command {
     constructor() {
@@ -296,19 +297,39 @@ export class CreateTextChanCommand extends Command {
             minute: minute
         };
 
-        const schedule = this.buildCronSchedule(day, interval, hour, minute);
+        try {
+            const job = await TextChannelJobService.createJob(
+                guildInstance.id,
+                day,
+                interval,
+                formatOptions,
+                categoryId
+            );
 
-        if (!await this.isJobUnique(interaction, guildInstance.id, baseChannelName, schedule, categoryId)) return;
+            const exampleName = TextChannelJobService.formatChannelName(
+                baseChannelName,
+                includeDateOption,
+                dateFormatOption
+            );
 
-        await this.createCronJob(
-            interaction,
-            guildInstance.id,
-            baseChannelName,
-            interval,
-            schedule,
-            categoryId,
-            JSON.stringify(formatOptions)
-        );
+            await interaction.reply({
+                content: `✅ Tâche planifiée créée avec succès ! Exemple de nom: \`${exampleName}\`\nID de la tâche: \`${job.id}\``,
+                ephemeral: false
+            });
+        } catch (err) {
+            if (err instanceof Error && err.message === 'JOB_EXISTS') {
+                await interaction.reply({
+                    content: "Une tâche planifiée avec ce nom et cette fréquence existe déjà !",
+                    ephemeral: true
+                });
+            } else {
+                this.logger.error("Error creating cron job:", err);
+                await interaction.reply({
+                    content: "❌ Une erreur est survenue lors de l'ajout de la tâche planifiée.",
+                    ephemeral: true
+                });
+            }
+        }
     }
 
     private async handleList(interaction: ChatInputCommandInteraction): Promise<void> {
